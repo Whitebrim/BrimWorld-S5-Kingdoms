@@ -234,32 +234,25 @@ public class KingdomsCommand implements CommandExecutor, TabCompleter {
             return true;
         }
         
-        // Add to whitelist
-        boolean added = plugin.getKingdomManager().addPlayerToWhitelist(playerName, kingdomId);
+        // Add to whitelist (this also removes from other kingdoms)
+        plugin.getKingdomManager().addPlayerToWhitelist(playerName, kingdomId);
         
-        if (added) {
-            String displayName = plugin.getConfigManager().getKingdomDisplayName(kingdomId);
-            sender.sendMessage(plugin.getMessagesConfig().getComponentWithPrefix(
-                    "commands.player-assigned",
-                    MessagesConfig.placeholders()
-                            .add("player", playerName)
-                            .add("kingdom", displayName)
-                            .build()
-            ));
-            
-            // If player is online, assign them immediately
-            Player target = Bukkit.getPlayerExact(playerName);
-            if (target != null) {
-                plugin.getKingdomManager().assignPlayerToKingdom(target, kingdomId);
-                target.sendMessage(plugin.getMessagesConfig().getComponentWithPrefix(
-                        "kingdom.joined",
-                        MessagesConfig.placeholder("kingdom", displayName)
-                ));
-            }
-        } else {
-            sender.sendMessage(plugin.getMessagesConfig().getComponentWithPrefix(
-                    "commands.player-already-assigned",
-                    MessagesConfig.placeholder("player", playerName)
+        String displayName = plugin.getConfigManager().getKingdomDisplayName(kingdomId);
+        sender.sendMessage(plugin.getMessagesConfig().getComponentWithPrefix(
+                "commands.player-assigned",
+                MessagesConfig.placeholders()
+                        .add("player", playerName)
+                        .add("kingdom", displayName)
+                        .build()
+        ));
+        
+        // If player is online, assign them immediately
+        Player target = Bukkit.getPlayerExact(playerName);
+        if (target != null) {
+            plugin.getKingdomManager().assignPlayerToKingdom(target, kingdomId);
+            target.sendMessage(plugin.getMessagesConfig().getComponentWithPrefix(
+                    "kingdom.joined",
+                    MessagesConfig.placeholder("kingdom", displayName)
             ));
         }
         

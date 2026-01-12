@@ -5,7 +5,6 @@ import gg.brim.kingdoms.config.MessagesConfig;
 import gg.brim.kingdoms.ghost.altar.Altar;
 import gg.brim.kingdoms.util.FoliaUtil;
 import net.kyori.adventure.text.Component;
-import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.*;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.FileConfiguration;
@@ -14,8 +13,6 @@ import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.potion.PotionEffect;
 import org.bukkit.potion.PotionEffectType;
-import org.bukkit.scoreboard.Scoreboard;
-import org.bukkit.scoreboard.Team;
 
 import java.io.File;
 import java.io.IOException;
@@ -35,9 +32,6 @@ public class GhostManager {
     // Active ghosts (UUID -> GhostState)
     private final Map<UUID, GhostState> ghosts = new ConcurrentHashMap<>();
     
-    // Scoreboard team for ghost glowing effect
-    private Team ghostTeam;
-    
     // Duration in milliseconds
     private long ghostDurationMs;
     
@@ -47,7 +41,6 @@ public class GhostManager {
         
         loadConfig();
         loadGhostData();
-        setupScoreboardTeam();
         startSelfResurrectChecker();
     }
     
@@ -55,52 +48,77 @@ public class GhostManager {
      * Loads ghost-related config values.
      */
     private void loadConfig() {
-        int hours = plugin.getConfig().getInt("ghost-system.duration-hours", 18);
-        this.ghostDurationMs = hours * 60L * 60L * 1000L;
+        int minutes = plugin.getConfig().getInt("ghost-system.duration-minutes", 30);
+        this.ghostDurationMs = minutes * 60L * 1000L;
     }
     
     /**
-     * Sets up the scoreboard team for ghost glowing.
-     */
-    private void setupScoreboardTeam() {
-        Scoreboard scoreboard = Bukkit.getScoreboardManager().getMainScoreboard();
-        ghostTeam = scoreboard.getTeam("kd_ghosts");
-        
-        if (ghostTeam == null) {
-            ghostTeam = scoreboard.registerNewTeam("kd_ghosts");
-        }
-        
-        // Set ghost glow color (light gray/white for ethereal look)
-        ghostTeam.color(NamedTextColor.GRAY);
-        ghostTeam.setOption(Team.Option.NAME_TAG_VISIBILITY, Team.OptionStatus.NEVER);
-    }
-    
-    /**
-     * Starts a periodic checker for self-resurrection availability.
+     * Starts a periodic checker for automatic self-resurrection.
      */
     private void startSelfResurrectChecker() {
-        // Check every minute for ghosts that can self-resurrect
+        // Check every 10 seconds for ghosts that can self-resurrect
         FoliaUtil.runGlobalRepeating(plugin, () -> {
             for (GhostState ghost : ghosts.values()) {
-                if (ghost.canSelfResurrect() && !ghost.isSelfResurrectNotified()) {
+                if (ghost.canSelfResurrect()) {
                     Player player = Bukkit.getPlayer(ghost.getPlayerUuid());
                     if (player != null && player.isOnline()) {
-                        notifySelfResurrectAvailable(player);
-                        ghost.setSelfResurrectNotified(true);
+                        // Auto-resurrect!
+                        performAutoResurrect(player, ghost);
                     }
                 }
             }
-        }, 20 * 60, 20 * 60); // Every minute
+        }, 20 * 10, 20 * 10); // Every 10 seconds
+    }
+    
+    /**
+     * Performs automatic resurrection when time expires.
+     */
+    private void performAutoResurrect(Player player, GhostState state) {
+        plugin.debug("Auto-resurrecting " + player.getName() + " (time expired)");
+        
+        // Determine resurrection location (bed -> kingdom spawn, never world spawn)
+        Location location = getResurrectionLocation(player, state, "bed");
+        
+        performResurrection(player, location, null);
+        player.sendMessage(plugin.getMessagesConfig().getComponentWithPrefix("ghost.auto-resurrected"));
+    }
+    
+    /**
+     * Checks if a player should be auto-resurrected on join.
+     * Called from GhostVisibilityListener on player join.
+     */
+    public void checkAutoResurrectOnJoin(Player player) {
+        GhostState state = ghosts.get(player.getUniqueId());
+        if (state == null) return;
+        
+        if (state.canSelfResurrect()) {
+            // Schedule auto-resurrect after a short delay
+            FoliaUtil.runDelayed(plugin, player, () -> {
+                if (player.isOnline() && isGhost(player.getUniqueId())) {
+                    performAutoResurrect(player, state);
+                }
+            }, 40L); // 2 seconds delay
+        }
     }
     
     /**
      * Makes a player become a ghost.
      */
     public void makeGhost(Player player, String kingdomId) {
+        makeGhost(player, kingdomId, player.getLocation());
+    }
+    
+    /**
+     * Makes a player become a ghost at specified death location.
+     */
+    public void makeGhost(Player player, String kingdomId, Location deathLocation) {
         UUID uuid = player.getUniqueId();
         
         // Generate resurrection cost
         List<ItemStack> cost = generateResurrectionCost();
+        
+        // Use provided death location or current location as fallback
+        Location actualDeathLoc = deathLocation != null ? deathLocation : player.getLocation();
         
         // Create ghost state with configurable duration
         GhostState state = new GhostState(
@@ -110,7 +128,7 @@ public class GhostManager {
                 System.currentTimeMillis(),
                 ghostDurationMs,
                 cost,
-                player.getLocation()
+                actualDeathLoc
         );
         
         ghosts.put(uuid, state);
@@ -151,10 +169,7 @@ public class GhostManager {
                 false   // icon
         ));
         
-        // Add to ghost team for colored glow
-        ghostTeam.addEntity(player);
-        
-        // Enable glowing (visible to those who can see the entity)
+        // Enable glowing (white glow since Folia doesn't support scoreboard teams)
         player.setGlowing(true);
         
         // Visual feedback - particles around player
@@ -165,9 +180,6 @@ public class GhostManager {
      * Removes ghost mode effects from a player.
      */
     public void removeGhostEffects(Player player) {
-        // Remove from ghost team
-        ghostTeam.removeEntity(player);
-        
         // Remove effects
         player.removePotionEffect(PotionEffectType.INVISIBILITY);
         player.setGlowing(false);
@@ -304,6 +316,13 @@ public class GhostManager {
                     performResurrection(player, loc, state.getResurrectedBy());
                 }, 20L); // 1 second delay for safety
             }
+        } else if (state.canSelfResurrect()) {
+            // Auto-resurrect on join if time has expired
+            FoliaUtil.runDelayed(plugin, player, () -> {
+                if (player.isOnline() && isGhost(player.getUniqueId())) {
+                    performAutoResurrect(player, state);
+                }
+            }, 40L); // 2 seconds delay
         } else {
             // Reapply ghost effects
             FoliaUtil.runDelayed(plugin, player, () -> {
@@ -404,7 +423,7 @@ public class GhostManager {
         }
         
         // Determine resurrection location
-        String locationType = plugin.getConfig().getString("ghost-system.self-resurrect-location", "spawn");
+        String locationType = plugin.getConfig().getString("ghost-system.self-resurrect-location", "bed");
         Location location = getResurrectionLocation(player, state, locationType);
         
         performResurrection(player, location, null);
@@ -413,31 +432,42 @@ public class GhostManager {
     
     /**
      * Gets the appropriate resurrection location based on type.
+     * Priority: specified type -> bed -> kingdom spawn (NEVER world spawn)
      */
     public Location getResurrectionLocation(Player player, GhostState state, String type) {
+        Location result = null;
+        
         switch (type.toLowerCase()) {
             case "altar":
                 // Find nearest altar for the kingdom
                 Altar altar = plugin.getAltarManager().getNearestAltar(state.getKingdomId(), player.getLocation());
                 if (altar != null) {
-                    return altar.getLocation().clone().add(0.5, 1, 0.5);
+                    result = altar.getLocation().clone().add(0.5, 1, 0.5);
                 }
-                // Fallback to spawn
-            case "spawn":
-                Location spawn = plugin.getSpawnManager().getSpawn(state.getKingdomId());
-                if (spawn != null) {
-                    return spawn;
-                }
-                // Fallback to bed
+                break;
             case "bed":
             default:
-                Location bedSpawn = player.getRespawnLocation();
-                if (bedSpawn != null) {
-                    return bedSpawn;
-                }
-                // Final fallback - world spawn
-                return player.getWorld().getSpawnLocation();
+                // Try bed/respawn anchor first
+                result = player.getRespawnLocation();
+                break;
         }
+        
+        // If no result yet, try bed as fallback
+        if (result == null) {
+            result = player.getRespawnLocation();
+        }
+        
+        // Final fallback - kingdom spawn (NEVER world spawn!)
+        if (result == null) {
+            result = plugin.getSpawnManager().getSpawn(state.getKingdomId());
+        }
+        
+        // Last resort - use death location if we still have nothing
+        if (result == null && state.getDeathLocation() != null) {
+            result = state.getDeathLocation();
+        }
+        
+        return result;
     }
     
     /**

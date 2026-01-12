@@ -12,6 +12,7 @@ import org.bukkit.event.inventory.InventoryCloseEvent;
 import org.bukkit.event.inventory.InventoryType;
 import org.bukkit.event.player.PlayerInteractEntityEvent;
 import org.bukkit.inventory.EquipmentSlot;
+import org.bukkit.inventory.MerchantInventory;
 
 /**
  * Handles interactions with resurrection altars.
@@ -75,30 +76,20 @@ public class AltarInteractionListener implements Listener {
             return;
         }
         
-        // Get the trade index
-        int tradeIndex = event.getTrade().getUses(); // This is a workaround - we track by index
+        // Always cancel the default trade behavior - we handle everything manually
+        event.setCancelled(true);
         
-        // For Paper's virtual merchants, we need to get the index differently
-        // We'll use a small trick - iterate through merchant recipes to find the index
+        // Get the actual index from the merchant view
         var merchant = player.getOpenInventory().getTopInventory();
         if (merchant.getType() != InventoryType.MERCHANT) {
             return;
         }
         
-        // Get the actual index from the merchant view
-        org.bukkit.inventory.MerchantInventory merchantInv = (org.bukkit.inventory.MerchantInventory) merchant;
+        MerchantInventory merchantInv = (MerchantInventory) merchant;
         int selectedIndex = merchantInv.getSelectedRecipeIndex();
         
-        // Cancel the default trade behavior
-        event.setRewardExp(false);
-        event.setIncreaseTradeUses(false);
-        
-        // Handle the resurrection
-        boolean success = plugin.getResurrectionGUI().handleTrade(player, selectedIndex);
-        
-        if (!success) {
-            event.setCancelled(true);
-        }
+        // Handle the resurrection (this will consume items and resurrect)
+        plugin.getResurrectionGUI().handleTrade(player, selectedIndex, merchantInv);
     }
     
     /**

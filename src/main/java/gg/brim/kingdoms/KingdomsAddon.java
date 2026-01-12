@@ -6,7 +6,9 @@ import gg.brim.kingdoms.config.MessagesConfig;
 import gg.brim.kingdoms.ghost.GhostManager;
 import gg.brim.kingdoms.ghost.altar.AltarManager;
 import gg.brim.kingdoms.ghost.gui.ResurrectionGUI;
-import gg.brim.kingdoms.ghost.listener.*;
+import gg.brim.kingdoms.ghost.listener.AltarInteractionListener;
+import gg.brim.kingdoms.ghost.listener.GhostInteractionListener;
+import gg.brim.kingdoms.ghost.listener.GhostVisibilityListener;
 import gg.brim.kingdoms.listeners.*;
 import gg.brim.kingdoms.manager.KingdomManager;
 import gg.brim.kingdoms.manager.SpawnManager;
@@ -118,8 +120,7 @@ public class KingdomsAddon extends JavaPlugin {
         this.ghostManager = new GhostManager(this);
         this.resurrectionGUI = new ResurrectionGUI(this);
         
-        // Register ghost system listeners
-        Bukkit.getPluginManager().registerEvents(new GhostDeathListener(this), this);
+        // Register ghost system listeners (death handling is in RespawnHook)
         Bukkit.getPluginManager().registerEvents(new GhostInteractionListener(this), this);
         Bukkit.getPluginManager().registerEvents(new AltarInteractionListener(this), this);
         Bukkit.getPluginManager().registerEvents(new GhostVisibilityListener(this), this);

@@ -109,7 +109,7 @@ public class ResurrectionGUI {
      * Creates the result item showing ghost information.
      */
     private ItemStack createResurrectionResultItem(GhostState ghost) {
-        ItemStack item = new ItemStack(Material.WRITTEN_BOOK);
+        ItemStack item = new ItemStack(Material.KNOWLEDGE_BOOK);
         ItemMeta meta = item.getItemMeta();
         
         // Title with ghost name
@@ -160,9 +160,10 @@ public class ResurrectionGUI {
      * 
      * @param player The player who made the trade
      * @param tradeIndex The index of the trade
+     * @param merchantInv The merchant inventory to consume items from
      * @return true if resurrection was processed
      */
-    public boolean handleTrade(Player player, int tradeIndex) {
+    public boolean handleTrade(Player player, int tradeIndex, org.bukkit.inventory.MerchantInventory merchantInv) {
         UUID playerUuid = player.getUniqueId();
         
         Map<Integer, UUID> ghostMapping = tradeGhostMapping.get(playerUuid);
@@ -179,6 +180,20 @@ public class ResurrectionGUI {
             player.sendMessage(plugin.getMessagesConfig().getComponentWithPrefix("ghost.altar.ghost-not-found"));
             return false;
         }
+        
+        // Check if player has required items
+        List<ItemStack> cost = ghost.getResurrectionCost();
+        if (!hasRequiredItems(player, cost)) {
+            player.sendMessage(plugin.getMessagesConfig().getComponentWithPrefix("ghost.altar.not-enough-items"));
+            return false;
+        }
+        
+        // Consume items from player inventory
+        consumeItems(player, cost);
+        
+        // Clear the merchant input slots (so items don't stay there)
+        merchantInv.setItem(0, null);
+        merchantInv.setItem(1, null);
         
         // Determine resurrection location
         String locationType = plugin.getConfig().getString("ghost-system.buyback-location", "altar");
@@ -204,7 +219,7 @@ public class ResurrectionGUI {
                     gg.brim.kingdoms.config.MessagesConfig.placeholder("player", ghost.getPlayerName())
             ));
             
-            // Close inventory and refresh if there are more ghosts
+            // Close inventory
             player.closeInventory();
             
             // Notify other clan members
@@ -212,6 +227,42 @@ public class ResurrectionGUI {
         }
         
         return success;
+    }
+    
+    /**
+     * Checks if player has all required items.
+     */
+    private boolean hasRequiredItems(Player player, List<ItemStack> cost) {
+        for (ItemStack required : cost) {
+            if (!player.getInventory().containsAtLeast(required, required.getAmount())) {
+                return false;
+            }
+        }
+        return true;
+    }
+    
+    /**
+     * Consumes required items from player inventory.
+     */
+    private void consumeItems(Player player, List<ItemStack> cost) {
+        for (ItemStack required : cost) {
+            int remaining = required.getAmount();
+            ItemStack[] contents = player.getInventory().getContents();
+            
+            for (int i = 0; i < contents.length && remaining > 0; i++) {
+                ItemStack item = contents[i];
+                if (item != null && item.getType() == required.getType()) {
+                    int take = Math.min(remaining, item.getAmount());
+                    item.setAmount(item.getAmount() - take);
+                    remaining -= take;
+                    
+                    if (item.getAmount() <= 0) {
+                        player.getInventory().setItem(i, null);
+                    }
+                }
+            }
+        }
+        player.updateInventory();
     }
     
     /**

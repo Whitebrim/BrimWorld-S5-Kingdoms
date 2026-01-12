@@ -368,20 +368,25 @@ public class KingdomManager {
     
     /**
      * Adds a player to a kingdom's whitelist file.
+     * Removes the player from any other kingdom first.
      */
     public boolean addPlayerToWhitelist(String playerName, String kingdomId) {
         if (!ALL_KINGDOMS.contains(kingdomId)) {
             return false;
         }
         
+        // First, remove player from all other kingdoms
+        removePlayerFromAllWhitelists(playerName);
+        
         File file = new File(plugin.getDataFolder(), "teams/" + kingdomId + ".yml");
         FileConfiguration config = YamlConfiguration.loadConfiguration(file);
         
         List<String> players = new ArrayList<>(config.getStringList("players"));
         
-        // Check if already exists
+        // Check if already exists in target kingdom
         if (players.stream().anyMatch(p -> p.equalsIgnoreCase(playerName))) {
-            return false;
+            // Already in target kingdom, but might have been removed from others
+            return true;
         }
         
         players.add(playerName);
@@ -395,6 +400,37 @@ public class KingdomManager {
             plugin.getLogger().warning("Failed to save " + kingdomId + ".yml: " + e.getMessage());
             return false;
         }
+    }
+    
+    /**
+     * Removes a player from all kingdom whitelist files.
+     */
+    private void removePlayerFromAllWhitelists(String playerName) {
+        String lowerName = playerName.toLowerCase();
+        
+        for (String kingdom : ALL_KINGDOMS) {
+            File file = new File(plugin.getDataFolder(), "teams/" + kingdom + ".yml");
+            if (!file.exists()) continue;
+            
+            FileConfiguration config = YamlConfiguration.loadConfiguration(file);
+            List<String> players = new ArrayList<>(config.getStringList("players"));
+            
+            // Remove player (case-insensitive)
+            boolean removed = players.removeIf(p -> p.equalsIgnoreCase(playerName));
+            
+            if (removed) {
+                config.set("players", players);
+                try {
+                    config.save(file);
+                    plugin.debug("Removed " + playerName + " from " + kingdom + " whitelist");
+                } catch (IOException e) {
+                    plugin.getLogger().warning("Failed to save " + kingdom + ".yml: " + e.getMessage());
+                }
+            }
+        }
+        
+        // Remove from cache
+        playerWhitelist.remove(lowerName);
     }
     
     /**
