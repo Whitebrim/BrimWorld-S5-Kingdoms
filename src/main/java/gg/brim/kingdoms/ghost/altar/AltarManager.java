@@ -200,6 +200,10 @@ public class AltarManager {
         Altar altar = altars.get(altarId);
         if (altar == null) return false;
         
+        // Normalize location - remove pitch to prevent tilted altar
+        Location normalizedLoc = newLocation.clone();
+        normalizedLoc.setPitch(0);
+        
         // Remove old entities
         FoliaUtil.runAtLocation(plugin, altar.getLocation(), () -> {
             altar.remove();
@@ -209,12 +213,12 @@ public class AltarManager {
         Altar newAltar = new Altar(
                 altar.getAltarId(),
                 altar.getKingdomId(),
-                newLocation,
+                normalizedLoc,
                 null, null
         );
         
         // Spawn new entities
-        FoliaUtil.runAtLocation(plugin, newLocation, () -> {
+        FoliaUtil.runAtLocation(plugin, normalizedLoc, () -> {
             spawnAltarEntities(newAltar);
             
             // Update maps
@@ -224,7 +228,7 @@ public class AltarManager {
             saveAltars();
         });
         
-        plugin.debug("Relocated altar " + altarId + " to " + formatLocation(newLocation));
+        plugin.debug("Relocated altar " + altarId + " to " + formatLocation(normalizedLoc));
         return true;
     }
     
