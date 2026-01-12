@@ -78,6 +78,19 @@ public final class FoliaUtil {
     }
     
     /**
+     * Runs a repeating task on the region owning the specified location.
+     * 
+     * @param plugin The plugin
+     * @param location The location
+     * @param task The task to run
+     * @param initialDelayTicks Initial delay in ticks
+     * @param periodTicks Period between executions in ticks
+     */
+    public static void runAtLocationRepeating(Plugin plugin, Location location, Runnable task, long initialDelayTicks, long periodTicks) {
+        Bukkit.getRegionScheduler().runAtFixedRate(plugin, location, scheduledTask -> task.run(), initialDelayTicks, periodTicks);
+    }
+    
+    /**
      * Runs a task asynchronously.
      * 
      * @param plugin The plugin

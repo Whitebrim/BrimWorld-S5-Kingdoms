@@ -34,6 +34,7 @@ public class KingdomsAddon extends JavaPlugin {
     private GhostManager ghostManager;
     private AltarManager altarManager;
     private ResurrectionGUI resurrectionGUI;
+    private RespawnHook respawnHook;
     
     private boolean nLoginEnabled = false;
     
@@ -141,10 +142,8 @@ public class KingdomsAddon extends JavaPlugin {
         Bukkit.getPluginManager().registerEvents(respawnListener, this);
         getLogger().info("Registered PlayerRespawnListener");
 
-        Bukkit.getPluginManager().registerEvents(
-                new RespawnHook(this),
-                this
-        );
+        this.respawnHook = new RespawnHook(this);
+        Bukkit.getPluginManager().registerEvents(respawnHook, this);
 
         // Register join listener (handles non-nLogin case or fallback)
         Bukkit.getPluginManager().registerEvents(new PlayerJoinListener(this), this);
@@ -222,6 +221,10 @@ public class KingdomsAddon extends JavaPlugin {
     
     public ResurrectionGUI getResurrectionGUI() {
         return resurrectionGUI;
+    }
+    
+    public RespawnHook getRespawnHook() {
+        return respawnHook;
     }
     
     public boolean isNLoginEnabled() {

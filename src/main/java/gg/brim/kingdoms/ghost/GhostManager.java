@@ -62,8 +62,16 @@ public class GhostManager {
                 if (ghost.canSelfResurrect()) {
                     Player player = Bukkit.getPlayer(ghost.getPlayerUuid());
                     if (player != null && player.isOnline()) {
-                        // Auto-resurrect!
-                        performAutoResurrect(player, ghost);
+                        // Run on player's region to avoid cross-region issues
+                        FoliaUtil.runOnEntity(plugin, player, () -> {
+                            // Double-check conditions after scheduling
+                            if (player.isOnline() && isGhost(player.getUniqueId())) {
+                                GhostState currentState = ghosts.get(player.getUniqueId());
+                                if (currentState != null && currentState.canSelfResurrect()) {
+                                    performAutoResurrect(player, currentState);
+                                }
+                            }
+                        });
                     }
                 }
             }
@@ -76,8 +84,15 @@ public class GhostManager {
     private void performAutoResurrect(Player player, GhostState state) {
         plugin.debug("Auto-resurrecting " + player.getName() + " (time expired)");
         
-        // Determine resurrection location (bed -> kingdom spawn, never world spawn)
-        Location location = getResurrectionLocation(player, state, "bed");
+        // Use safe location getter that doesn't rely on getRespawnLocation()
+        // which can fail in Folia when called from wrong region
+        Location location = getResurrectionLocationSafe(state);
+        
+        if (location == null) {
+            plugin.getLogger().warning("Could not find resurrection location for " + player.getName());
+            // Last resort - use player's current location
+            location = player.getLocation();
+        }
         
         performResurrection(player, location, null);
         player.sendMessage(plugin.getMessagesConfig().getComponentWithPrefix("ghost.auto-resurrected"));
@@ -105,13 +120,20 @@ public class GhostManager {
      * Makes a player become a ghost.
      */
     public void makeGhost(Player player, String kingdomId) {
-        makeGhost(player, kingdomId, player.getLocation());
+        makeGhost(player, kingdomId, player.getLocation(), null);
     }
     
     /**
      * Makes a player become a ghost at specified death location.
      */
     public void makeGhost(Player player, String kingdomId, Location deathLocation) {
+        makeGhost(player, kingdomId, deathLocation, null);
+    }
+    
+    /**
+     * Makes a player become a ghost at specified death location with bed spawn.
+     */
+    public void makeGhost(Player player, String kingdomId, Location deathLocation, Location bedSpawnLocation) {
         UUID uuid = player.getUniqueId();
         
         // Generate resurrection cost
@@ -128,7 +150,8 @@ public class GhostManager {
                 System.currentTimeMillis(),
                 ghostDurationMs,
                 cost,
-                actualDeathLoc
+                actualDeathLoc,
+                bedSpawnLocation
         );
         
         ghosts.put(uuid, state);
@@ -139,6 +162,9 @@ public class GhostManager {
         // Hide from living players, show to other ghosts
         updateVisibilityForGhost(player);
         
+        // Start actionbar timer for this ghost
+        startActionbarTimer(player, state);
+        
         // Save data
         saveGhostData();
         
@@ -146,6 +172,50 @@ public class GhostManager {
         player.sendMessage(plugin.getMessagesConfig().getComponentWithPrefix("ghost.became-ghost"));
         
         plugin.debug("Player " + player.getName() + " became a ghost");
+    }
+    
+    /**
+     * Starts the actionbar timer display for a ghost.
+     */
+    private void startActionbarTimer(Player player, GhostState state) {
+        FoliaUtil.runRepeatingOnEntity(plugin, player, (cancel) -> {
+            if (!isGhost(player.getUniqueId()) || !player.isOnline()) {
+                cancel.run();
+                return;
+            }
+            
+            long remainingMs = state.getRemainingTimeMs();
+            String timeText;
+            
+            if (remainingMs <= 0) {
+                timeText = "§a§lГотов к воскрешению! §7(/kd resurrect)";
+            } else {
+                timeText = "§c☠ §7Воскрешение через: §e" + formatTime(remainingMs) + " §c☠";
+            }
+            
+            player.sendActionBar(net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer
+                    .legacySection().deserialize(timeText));
+        }, 20L, 20L); // Every second
+    }
+    
+    /**
+     * Formats milliseconds to human-readable time string.
+     */
+    private String formatTime(long ms) {
+        long hours = ms / (1000 * 60 * 60);
+        long minutes = (ms % (1000 * 60 * 60)) / (1000 * 60);
+        long seconds = (ms % (1000 * 60)) / 1000;
+        
+        StringBuilder sb = new StringBuilder();
+        if (hours > 0) {
+            sb.append(hours).append(" ч ");
+        }
+        if (minutes > 0 || hours > 0) {
+            sb.append(minutes).append(" мин ");
+        }
+        sb.append(seconds).append(" сек");
+        
+        return sb.toString();
     }
     
     /**
@@ -291,7 +361,7 @@ public class GhostManager {
                 player.setSaturation(20f);
                 
                 // Play effects
-                player.playSound(player.getLocation(), Sound.ITEM_TOTEM_USE, 1.0f, 1.0f);
+                location.getWorld().playSound(player.getLocation(), Sound.ITEM_TOTEM_USE, 1.0f, 1.0f);
                 player.getWorld().spawnParticle(Particle.TOTEM_OF_UNDYING, player.getLocation().add(0, 1, 0), 50);
             }
         });
@@ -314,7 +384,7 @@ public class GhostManager {
             if (loc != null) {
                 FoliaUtil.runDelayed(plugin, player, () -> {
                     performResurrection(player, loc, state.getResurrectedBy());
-                }, 20L); // 1 second delay for safety
+                }, 1L);
             }
         } else if (state.canSelfResurrect()) {
             // Auto-resurrect on join if time has expired
@@ -322,13 +392,14 @@ public class GhostManager {
                 if (player.isOnline() && isGhost(player.getUniqueId())) {
                     performAutoResurrect(player, state);
                 }
-            }, 40L); // 2 seconds delay
+            }, 1L);
         } else {
-            // Reapply ghost effects
+            // Reapply ghost effects and restart actionbar timer
             FoliaUtil.runDelayed(plugin, player, () -> {
                 applyGhostEffects(player);
                 updateVisibilityForGhost(player);
-            }, 10L);
+                startActionbarTimer(player, state);
+            }, 1L);
         }
     }
     
@@ -364,7 +435,7 @@ public class GhostManager {
         List<Map<?, ?>> costPool = plugin.getConfig().getMapList("ghost-system.resurrection-costs");
         if (costPool.isEmpty()) {
             // Default cost
-            cost.add(new ItemStack(Material.DIAMOND, 5));
+            cost.add(new ItemStack(Material.DIAMOND, 1));
             return cost;
         }
         
@@ -388,7 +459,7 @@ public class GhostManager {
         }
         
         if (cost.isEmpty()) {
-            cost.add(new ItemStack(Material.DIAMOND, 5));
+            cost.add(new ItemStack(Material.DIAMOND, 1));
         }
         
         return cost;
@@ -423,8 +494,15 @@ public class GhostManager {
         }
         
         // Determine resurrection location
-        String locationType = plugin.getConfig().getString("ghost-system.self-resurrect-location", "bed");
-        Location location = getResurrectionLocation(player, state, locationType);
+        // Use safe version that doesn't rely on getRespawnLocation() 
+        // which can fail in Folia if bed is in different region
+        Location location = getResurrectionLocationSafe(state);
+        
+        if (location == null) {
+            // Last resort - use player's current location
+            location = player.getLocation();
+            plugin.debug("Using player's current location for self-resurrect (no other location available)");
+        }
         
         performResurrection(player, location, null);
         return true;
@@ -434,6 +512,10 @@ public class GhostManager {
      * Gets the appropriate resurrection location based on type.
      * Priority: specified type -> bed -> kingdom spawn (NEVER world spawn)
      */
+    /**
+     * Gets resurrection location - ONLY call this when on player's region!
+     * For auto-resurrection or global tasks, use getResurrectionLocationSafe() instead.
+     */
     public Location getResurrectionLocation(Player player, GhostState state, String type) {
         Location result = null;
         
@@ -442,19 +524,27 @@ public class GhostManager {
                 // Find nearest altar for the kingdom
                 Altar altar = plugin.getAltarManager().getNearestAltar(state.getKingdomId(), player.getLocation());
                 if (altar != null) {
-                    result = altar.getLocation().clone().add(0.5, 1, 0.5);
+                    result = altar.getLocation().clone().add(0, 1, 0);
                 }
                 break;
             case "bed":
             default:
-                // Try bed/respawn anchor first
-                result = player.getRespawnLocation();
+                // Try bed/respawn anchor first - this can throw in Folia if not on player's region
+                try {
+                    result = player.getRespawnLocation();
+                } catch (Exception e) {
+                    plugin.debug("Could not get respawn location for " + player.getName() + ": " + e.getMessage());
+                }
                 break;
         }
         
         // If no result yet, try bed as fallback
         if (result == null) {
-            result = player.getRespawnLocation();
+            try {
+                result = player.getRespawnLocation();
+            } catch (Exception e) {
+                // Ignore - will use other fallbacks
+            }
         }
         
         // Final fallback - kingdom spawn (NEVER world spawn!)
@@ -468,6 +558,31 @@ public class GhostManager {
         }
         
         return result;
+    }
+    
+    /**
+     * Gets resurrection location without using getRespawnLocation().
+     * Safe to call from any thread/region in Folia.
+     * Priority: bed spawn -> kingdom spawn -> death location
+     */
+    public Location getResurrectionLocationSafe(GhostState state) {
+        // Priority 1: Bed/anchor spawn (saved at death time)
+        if (state.getBedSpawnLocation() != null && state.getBedSpawnLocation().getWorld() != null) {
+            return state.getBedSpawnLocation();
+        }
+        
+        // Priority 2: Kingdom spawn
+        Location kingdomSpawn = plugin.getSpawnManager().getSpawn(state.getKingdomId());
+        if (kingdomSpawn != null && kingdomSpawn.getWorld() != null) {
+            return kingdomSpawn;
+        }
+        
+        // Priority 3: Death location (fallback)
+        if (state.getDeathLocation() != null && state.getDeathLocation().getWorld() != null) {
+            return state.getDeathLocation();
+        }
+        
+        return null;
     }
     
     /**
@@ -537,6 +652,15 @@ public class GhostManager {
                 ghostDataConfig.set(path + ".death-location.y", loc.getY());
                 ghostDataConfig.set(path + ".death-location.z", loc.getZ());
             }
+            
+            // Save bed spawn location
+            if (state.getBedSpawnLocation() != null) {
+                Location loc = state.getBedSpawnLocation();
+                ghostDataConfig.set(path + ".bed-spawn.world", loc.getWorld().getName());
+                ghostDataConfig.set(path + ".bed-spawn.x", loc.getX());
+                ghostDataConfig.set(path + ".bed-spawn.y", loc.getY());
+                ghostDataConfig.set(path + ".bed-spawn.z", loc.getZ());
+            }
         }
         
         try {
@@ -595,10 +719,24 @@ public class GhostManager {
                     }
                 }
                 
+                // Load bed spawn location
+                Location bedSpawnLoc = null;
+                if (ghostDataConfig.contains(path + ".bed-spawn.world")) {
+                    World world = Bukkit.getWorld(ghostDataConfig.getString(path + ".bed-spawn.world"));
+                    if (world != null) {
+                        bedSpawnLoc = new Location(
+                                world,
+                                ghostDataConfig.getDouble(path + ".bed-spawn.x"),
+                                ghostDataConfig.getDouble(path + ".bed-spawn.y"),
+                                ghostDataConfig.getDouble(path + ".bed-spawn.z")
+                        );
+                    }
+                }
+                
                 // Load duration (use saved value or current config)
                 long duration = ghostDataConfig.getLong(path + ".duration-ms", ghostDurationMs);
                 
-                GhostState state = new GhostState(uuid, name, kingdom, deathTime, duration, cost, deathLoc);
+                GhostState state = new GhostState(uuid, name, kingdom, deathTime, duration, cost, deathLoc, bedSpawnLoc);
                 
                 // Load resurrection data
                 state.setPendingResurrection(ghostDataConfig.getBoolean(path + ".pending-resurrection", false));

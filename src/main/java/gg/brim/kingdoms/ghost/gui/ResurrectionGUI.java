@@ -109,7 +109,7 @@ public class ResurrectionGUI {
      * Creates the result item showing ghost information.
      */
     private ItemStack createResurrectionResultItem(GhostState ghost) {
-        ItemStack item = new ItemStack(Material.KNOWLEDGE_BOOK);
+        ItemStack item = new ItemStack(Material.TOTEM_OF_UNDYING);
         ItemMeta meta = item.getItemMeta();
         
         // Title with ghost name
@@ -196,13 +196,14 @@ public class ResurrectionGUI {
         org.bukkit.Location resLoc;
         
         if (locationType.equalsIgnoreCase("altar")) {
-            resLoc = altar.getLocation().clone().add(0.5, 1, 0.5);
+            resLoc = altar.getLocation().clone().add(0, 1, 0);
         } else {
-            Player ghostPlayer = Bukkit.getPlayer(ghostUuid);
-            if (ghostPlayer != null) {
-                resLoc = plugin.getGhostManager().getResurrectionLocation(ghostPlayer, ghost, locationType);
-            } else {
-                resLoc = altar.getLocation().clone().add(0.5, 1, 0.5);
+            // Use safe location getter that doesn't rely on getRespawnLocation()
+            // which can fail in Folia when ghost is in different region
+            resLoc = plugin.getGhostManager().getResurrectionLocationSafe(ghost);
+            if (resLoc == null) {
+                // Fallback to altar location
+                resLoc = altar.getLocation().clone().add(0, 1, 0);
             }
         }
         
@@ -215,8 +216,7 @@ public class ResurrectionGUI {
                     gg.brim.kingdoms.config.MessagesConfig.placeholder("player", ghost.getPlayerName())
             ));
             
-            // Close inventory
-            player.closeInventory();
+            // Note: cursor clearing and inventory closing is handled by the listener
             
             // Notify other clan members
             broadcastResurrection(ghost, player);

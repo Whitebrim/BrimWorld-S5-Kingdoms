@@ -236,6 +236,18 @@ public class GhostInteractionListener implements Listener {
     }
     
     /**
+     * Prevents sculk sensors from detecting ghost players.
+     */
+    @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
+    public void onGameEvent(org.bukkit.event.world.GenericGameEvent event) {
+        if (!(event.getEntity() instanceof Player player)) return;
+        if (!plugin.getGhostManager().isGhost(player.getUniqueId())) return;
+        
+        // Cancel all game events from ghosts (footsteps, etc.)
+        event.setCancelled(true);
+    }
+    
+    /**
      * Checks if a material is allowed for ghost interaction.
      */
     private boolean isAllowedInteraction(Material material) {

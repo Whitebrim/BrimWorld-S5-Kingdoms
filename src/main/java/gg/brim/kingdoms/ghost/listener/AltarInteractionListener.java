@@ -76,7 +76,7 @@ public class AltarInteractionListener implements Listener {
             return;
         }
         
-        // Always cancel the default trade behavior - we handle everything manually
+        // Cancel the default trade behavior - we handle everything manually
         event.setCancelled(true);
         
         // Get the actual index from the merchant view
@@ -88,8 +88,17 @@ public class AltarInteractionListener implements Listener {
         MerchantInventory merchantInv = (MerchantInventory) merchant;
         int selectedIndex = merchantInv.getSelectedRecipeIndex();
         
-        // Handle the resurrection (this will consume items and resurrect)
-        plugin.getResurrectionGUI().handleTrade(player, selectedIndex, merchantInv);
+        // Handle the resurrection
+        boolean success = plugin.getResurrectionGUI().handleTrade(player, selectedIndex, merchantInv);
+        
+        if (success) {
+            // Clear cursor to prevent any item from being kept
+            player.setItemOnCursor(null);
+            // Clear result slot
+            merchantInv.setItem(2, null);
+            // Close inventory
+            player.closeInventory();
+        }
     }
     
     /**

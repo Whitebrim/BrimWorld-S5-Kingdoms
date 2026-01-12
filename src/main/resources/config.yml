@@ -52,12 +52,12 @@ integration:
 
 # === ОТЛАДКА ===
 # Включите для просмотра подробных логов в консоли
-debug: true
+debug: false
 
 # === СИСТЕМА ПРИЗРАКОВ ===
 ghost-system:
   # Включить систему призраков?
-  enabled: false
+  enabled: true
   
   # Длительность состояния призрака (в минутах)
   # После этого времени призрак может воскреситься сам
@@ -85,13 +85,122 @@ ghost-system:
   # Пул стоимостей воскрешения
   resurrection-costs:
     - items:
-        - material: DIAMOND
+        - material: COPPER_BLOCK
+          amount: 1
+    - items:
+        - material: WHITE_GLAZED_TERRACOTTA
+          amount: 6
+    - items:
+        - material: STRING
+          amount: 3
+    - items:
+        - material: COMPASS
+          amount: 1
+    - items:
+        - material: CLOCK
+          amount: 1
+    - items:
+        - material: GLASS_BOTTLE
+          amount: 3
+        - material: WHEAT_SEEDS
+          amount: 16
+    - items:
+        - material: LIGHTNING_ROD
+          amount: 1
+        - material: ANDESITE
+          amount: 3
+    - items:
+        - material: GRANITE
+          amount: 7
+        - material: DIORITE
+          amount: 7
+    - items:
+        - material: CLAY_BALL
+          amount: 15
+        - material: STICK
           amount: 5
-        - material: GOLDEN_APPLE
+    - items:
+        - material: LEATHER
+          amount: 3
+    - items:
+        - material: BONE_MEAL
+          amount: 3
+    - items:
+        - material: FLINT
+          amount: 2
+        - material: ROTTEN_FLESH
+          amount: 5
+    - items:
+        - material: PACKED_MUD
+          amount: 1
+        - material: SMOOTH_SANDSTONE
+          amount: 1
+    - items:
+        - material: WHITE_BED
+          amount: 1
+    - items:
+        - material: WHITE_CONCRETE
+          amount: 10
+    - items:
+        - material: CRAFTING_TABLE
+          amount: 8
+        - material: CHEST
+          amount: 8
+    - items:
+        - material: ARMOR_STAND
+          amount: 1
+    - items:
+        - material: COOKED_BEEF
+          amount: 2
+        - material: COOKED_PORKCHOP
           amount: 2
     - items:
-        - material: EMERALD
-          amount: 32
+        - material: MILK_BUCKET
+          amount: 1
     - items:
-        - material: NETHER_STAR
+        - material: DANDELION
+          amount: 1
+        - material: POPPY
+          amount: 1
+    - items:
+        - material: NOTE_BLOCK
+          amount: 1
+    - items:
+        - material: COMPOSTER
+          amount: 1
+        - material: BUNDLE
+          amount: 1
+    - items:
+        - material: BARREL
+          amount: 1
+        - material: SADDLE
+          amount: 1
+    - items:
+        - material: CARTOGRAPHY_TABLE
+          amount: 1
+        - material: FLETCHING_TABLE
+          amount: 1
+    - items:
+        - material: LOOM
+          amount: 1
+        - material: SMITHING_TABLE
+          amount: 1
+    - items:
+        - material: GRINDSTONE
+          amount: 1
+        - material: COPPER_LANTERN
+          amount: 1
+    - items:
+        - material: DIAMOND_SPEAR
+          amount: 1
+    - items:
+        - material: DIRT
+          amount: 1
+    - items:
+        - material: STONE_BUTTON
+          amount: 1
+    - items:
+        - material: CHISELED_BOOKSHELF
+          amount: 1
+        - material: BOOK
           amount: 1

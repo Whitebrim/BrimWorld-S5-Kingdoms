@@ -28,7 +28,7 @@ public class KingdomsCommand implements CommandExecutor, TabCompleter {
     private final KingdomsAddon plugin;
     
     private static final List<String> SUBCOMMANDS = Arrays.asList(
-            "setspawn", "reload", "info", "assign", "list", "help", "altar", "resurrect", "debug"
+            "setspawn", "reload", "info", "assign", "list", "help", "altar", "resurrect", "spawn", "debug"
     );
     
     public KingdomsCommand(KingdomsAddon plugin) {
@@ -53,7 +53,8 @@ public class KingdomsCommand implements CommandExecutor, TabCompleter {
             case "list" -> handleList(sender);
             case "help" -> handleHelp(sender);
             case "altar" -> handleAltar(sender, args);
-            case "resurrect" -> handleResurrect(sender);
+            case "resurrect" -> handleResurrect(sender, args);
+            case "spawn" -> handleSpawn(sender, args);
             case "debug" -> handleDebug(sender);
             default -> {
                 sender.sendMessage(plugin.getMessagesConfig().getComponentWithPrefix("commands.unknown"));
@@ -321,7 +322,7 @@ public class KingdomsCommand implements CommandExecutor, TabCompleter {
         if (args.length < 2) {
             sender.sendMessage(plugin.getMessagesConfig().getComponentWithPrefix(
                     "commands.usage",
-                    MessagesConfig.placeholder("usage", "/kingdoms altar <create|remove|list|tp> [kingdom]")
+                    MessagesConfig.placeholder("usage", "/kingdoms altar <create|remove|relocate|list|tp> [kingdom]")
             ));
             return true;
         }
@@ -331,12 +332,13 @@ public class KingdomsCommand implements CommandExecutor, TabCompleter {
         return switch (action) {
             case "create" -> handleAltarCreate(sender, args);
             case "remove" -> handleAltarRemove(sender, args);
+            case "relocate" -> handleAltarRelocate(sender, args);
             case "list" -> handleAltarList(sender, args);
             case "tp" -> handleAltarTp(sender, args);
             default -> {
                 sender.sendMessage(plugin.getMessagesConfig().getComponentWithPrefix(
                         "commands.usage",
-                        MessagesConfig.placeholder("usage", "/kingdoms altar <create|remove|list|tp> [kingdom]")
+                        MessagesConfig.placeholder("usage", "/kingdoms altar <create|remove|relocate|list|tp> [kingdom]")
                 ));
                 yield true;
             }
@@ -440,6 +442,78 @@ public class KingdomsCommand implements CommandExecutor, TabCompleter {
         
         plugin.getAltarManager().removeAltar(altars.get(index).getAltarId());
         sender.sendMessage(plugin.getMessagesConfig().getComponentWithPrefix("ghost.altar.removed"));
+        
+        return true;
+    }
+    
+    /**
+     * Handles /kingdoms altar relocate <kingdom> [index]
+     */
+    private boolean handleAltarRelocate(CommandSender sender, String[] args) {
+        if (!sender.hasPermission("kingdoms.admin")) {
+            sender.sendMessage(plugin.getMessagesConfig().getComponentWithPrefix("plugin.no-permission"));
+            return true;
+        }
+        
+        if (!(sender instanceof Player player)) {
+            sender.sendMessage(plugin.getMessagesConfig().getComponentWithPrefix("plugin.player-only"));
+            return true;
+        }
+        
+        if (args.length < 3) {
+            sender.sendMessage(plugin.getMessagesConfig().getComponentWithPrefix(
+                    "commands.usage",
+                    MessagesConfig.placeholder("usage", "/kingdoms altar relocate <kingdom> [index]")
+            ));
+            return true;
+        }
+        
+        String kingdomId = args[2].toLowerCase();
+        
+        if (!KingdomManager.ALL_KINGDOMS.contains(kingdomId)) {
+            sender.sendMessage(plugin.getMessagesConfig().getComponentWithPrefix(
+                    "commands.invalid-kingdom",
+                    MessagesConfig.placeholder("kingdom", args[2])
+            ));
+            return true;
+        }
+        
+        var altars = plugin.getAltarManager().getAltarsForKingdom(kingdomId);
+        if (altars.isEmpty()) {
+            sender.sendMessage(plugin.getMessagesConfig().getComponentWithPrefix("ghost.altar.not-found"));
+            return true;
+        }
+        
+        int index = 0;
+        if (args.length >= 4) {
+            try {
+                index = Integer.parseInt(args[3]) - 1;
+            } catch (NumberFormatException e) {
+                sender.sendMessage(plugin.getMessagesConfig().getComponentWithPrefix(
+                        "commands.usage",
+                        MessagesConfig.placeholder("usage", "/kingdoms altar relocate <kingdom> [index]")
+                ));
+                return true;
+            }
+        }
+        
+        if (index < 0 || index >= altars.size()) {
+            sender.sendMessage(plugin.getMessagesConfig().getComponentWithPrefix("ghost.altar.not-found"));
+            return true;
+        }
+        
+        Location newLocation = player.getLocation();
+        boolean success = plugin.getAltarManager().relocateAltar(altars.get(index).getAltarId(), newLocation);
+        
+        if (success) {
+            String displayName = plugin.getConfigManager().getKingdomDisplayName(kingdomId);
+            sender.sendMessage(plugin.getMessagesConfig().getComponentWithPrefix(
+                    "ghost.altar.relocated",
+                    MessagesConfig.placeholder("kingdom", displayName)
+            ));
+        } else {
+            sender.sendMessage(plugin.getMessagesConfig().getComponentWithPrefix("ghost.altar.not-found"));
+        }
         
         return true;
     }
@@ -559,21 +633,65 @@ public class KingdomsCommand implements CommandExecutor, TabCompleter {
             index = 0;
         }
         
-        Location loc = altars.get(index).getLocation().clone().add(0.5, 1, 0.5);
+        Location loc = altars.get(index).getLocation().clone().add(0, 1, 0);
         FoliaUtil.teleportAsync(player, loc);
         
         return true;
     }
     
     /**
-     * Handles /kingdoms resurrect (self-resurrect for ghosts)
+     * Handles /kingdoms resurrect [player] (self-resurrect for ghosts or admin force resurrect)
      */
-    private boolean handleResurrect(CommandSender sender) {
+    private boolean handleResurrect(CommandSender sender, String[] args) {
         if (!plugin.getConfig().getBoolean("ghost-system.enabled", false)) {
             sender.sendMessage(plugin.getMessagesConfig().getComponentWithPrefix("commands.ghost-system-disabled"));
             return true;
         }
         
+        // Admin resurrect: /kd resurrect <player>
+        if (args.length >= 2) {
+            if (!sender.hasPermission("kingdoms.admin")) {
+                sender.sendMessage(plugin.getMessagesConfig().getComponentWithPrefix("plugin.no-permission"));
+                return true;
+            }
+            
+            String targetName = args[1];
+            Player target = Bukkit.getPlayer(targetName);
+            
+            if (target == null) {
+                sender.sendMessage(plugin.getMessagesConfig().getComponentWithPrefix(
+                        "commands.player-not-found",
+                        MessagesConfig.placeholder("player", targetName)
+                ));
+                return true;
+            }
+            
+            if (!plugin.getGhostManager().isGhost(target.getUniqueId())) {
+                sender.sendMessage(plugin.getMessagesConfig().getComponentWithPrefix(
+                        "ghost.player-not-ghost",
+                        MessagesConfig.placeholder("player", targetName)
+                ));
+                return true;
+            }
+            
+            // Get ghost state for resurrection location
+            var ghostState = plugin.getGhostManager().getGhostState(target.getUniqueId());
+            Location resLoc = plugin.getGhostManager().getResurrectionLocationSafe(ghostState);
+            
+            if (resLoc == null) {
+                resLoc = target.getLocation();
+            }
+            
+            plugin.getGhostManager().resurrect(target.getUniqueId(), resLoc, null);
+            
+            sender.sendMessage(plugin.getMessagesConfig().getComponentWithPrefix(
+                    "ghost.admin-resurrected",
+                    MessagesConfig.placeholder("player", target.getName())
+            ));
+            return true;
+        }
+        
+        // Self resurrect: /kd resurrect
         if (!(sender instanceof Player player)) {
             sender.sendMessage(plugin.getMessagesConfig().getComponentWithPrefix("plugin.player-only"));
             return true;
@@ -584,8 +702,88 @@ public class KingdomsCommand implements CommandExecutor, TabCompleter {
             return true;
         }
         
+        var ghostState = plugin.getGhostManager().getGhostState(player.getUniqueId());
+        if (!ghostState.canSelfResurrect()) {
+            sender.sendMessage(plugin.getMessagesConfig().getComponentWithPrefix(
+                    "ghost.cannot-self-resurrect-yet",
+                    MessagesConfig.placeholder("time", formatTimeForCommand(ghostState.getRemainingTimeMs()))
+            ));
+            return true;
+        }
+        
         plugin.getGhostManager().performSelfResurrect(player);
         return true;
+    }
+    
+    /**
+     * Handles /kingdoms spawn <kingdom> - teleport to kingdom spawn
+     */
+    private boolean handleSpawn(CommandSender sender, String[] args) {
+        if (!sender.hasPermission("kingdoms.admin")) {
+            sender.sendMessage(plugin.getMessagesConfig().getComponentWithPrefix("plugin.no-permission"));
+            return true;
+        }
+        
+        if (!(sender instanceof Player player)) {
+            sender.sendMessage(plugin.getMessagesConfig().getComponentWithPrefix("plugin.player-only"));
+            return true;
+        }
+        
+        if (args.length < 2) {
+            sender.sendMessage(plugin.getMessagesConfig().getComponentWithPrefix(
+                    "commands.usage",
+                    MessagesConfig.placeholder("usage", "/kingdoms spawn <kingdom>")
+            ));
+            return true;
+        }
+        
+        String kingdomId = args[1].toLowerCase();
+        
+        if (!KingdomManager.ALL_KINGDOMS.contains(kingdomId)) {
+            sender.sendMessage(plugin.getMessagesConfig().getComponentWithPrefix(
+                    "commands.invalid-kingdom",
+                    MessagesConfig.placeholder("kingdom", args[1])
+            ));
+            return true;
+        }
+        
+        Location spawn = plugin.getSpawnManager().getSpawn(kingdomId);
+        
+        if (spawn == null) {
+            sender.sendMessage(plugin.getMessagesConfig().getComponentWithPrefix(
+                    "commands.spawn-not-set",
+                    MessagesConfig.placeholder("kingdom", plugin.getConfigManager().getKingdomDisplayName(kingdomId))
+            ));
+            return true;
+        }
+        
+        FoliaUtil.teleportAsync(player, spawn);
+        sender.sendMessage(plugin.getMessagesConfig().getComponentWithPrefix(
+                "commands.teleported-to-spawn",
+                MessagesConfig.placeholder("kingdom", plugin.getConfigManager().getKingdomDisplayName(kingdomId))
+        ));
+        
+        return true;
+    }
+    
+    /**
+     * Formats milliseconds to human-readable time string for commands.
+     */
+    private String formatTimeForCommand(long ms) {
+        long hours = ms / (1000 * 60 * 60);
+        long minutes = (ms % (1000 * 60 * 60)) / (1000 * 60);
+        long seconds = (ms % (1000 * 60)) / 1000;
+        
+        StringBuilder sb = new StringBuilder();
+        if (hours > 0) {
+            sb.append(hours).append(" ч ");
+        }
+        if (minutes > 0 || hours > 0) {
+            sb.append(minutes).append(" мин ");
+        }
+        sb.append(seconds).append(" сек");
+        
+        return sb.toString();
     }
     
     /**
@@ -654,7 +852,7 @@ public class KingdomsCommand implements CommandExecutor, TabCompleter {
             String partial = args[1].toLowerCase();
             
             switch (subcommand) {
-                case "setspawn", "info" -> {
+                case "setspawn", "info", "spawn" -> {
                     completions.addAll(KingdomManager.ALL_KINGDOMS.stream()
                             .filter(k -> k.startsWith(partial))
                             .collect(Collectors.toList()));
@@ -666,9 +864,19 @@ public class KingdomsCommand implements CommandExecutor, TabCompleter {
                             .filter(n -> n.toLowerCase().startsWith(partial))
                             .collect(Collectors.toList()));
                 }
+                case "resurrect" -> {
+                    // Only show ghost players for admin resurrect
+                    if (sender.hasPermission("kingdoms.admin") && plugin.getGhostManager() != null) {
+                        completions.addAll(Bukkit.getOnlinePlayers().stream()
+                                .filter(p -> plugin.getGhostManager().isGhost(p.getUniqueId()))
+                                .map(Player::getName)
+                                .filter(n -> n.toLowerCase().startsWith(partial))
+                                .collect(Collectors.toList()));
+                    }
+                }
                 case "altar" -> {
                     // Altar subcommands
-                    completions.addAll(Arrays.asList("create", "remove", "list", "tp").stream()
+                    completions.addAll(Arrays.asList("create", "remove", "relocate", "list", "tp").stream()
                             .filter(s -> s.startsWith(partial))
                             .collect(Collectors.toList()));
                 }
@@ -678,7 +886,7 @@ public class KingdomsCommand implements CommandExecutor, TabCompleter {
             String partial = args[2].toLowerCase();
             
             if (subcommand.equals("assign") || (subcommand.equals("altar") && 
-                    Arrays.asList("create", "remove", "list", "tp").contains(args[1].toLowerCase()))) {
+                    Arrays.asList("create", "remove", "relocate", "list", "tp").contains(args[1].toLowerCase()))) {
                 completions.addAll(KingdomManager.ALL_KINGDOMS.stream()
                         .filter(k -> k.startsWith(partial))
                         .collect(Collectors.toList()));

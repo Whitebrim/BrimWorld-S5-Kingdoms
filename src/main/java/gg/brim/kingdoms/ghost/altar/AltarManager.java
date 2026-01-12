@@ -60,10 +60,14 @@ public class AltarManager {
      * Creates a new altar at the specified location.
      */
     public Altar createAltar(String kingdomId, Location location) {
-        Altar altar = new Altar(kingdomId, location);
+        // Normalize location - remove pitch to prevent tilted altar
+        Location normalizedLoc = location.clone();
+        normalizedLoc.setPitch(0);
+        
+        Altar altar = new Altar(kingdomId, normalizedLoc);
         
         // Spawn entities using RegionScheduler for Folia safety
-        FoliaUtil.runAtLocation(plugin, location, () -> {
+        FoliaUtil.runAtLocation(plugin, normalizedLoc, () -> {
             spawnAltarEntities(altar);
             
             // Register altar
@@ -71,11 +75,39 @@ public class AltarManager {
             altarsByKingdom.computeIfAbsent(kingdomId, k -> new ArrayList<>()).add(altar.getAltarId());
             interactionToAltar.put(altar.getInteractionEntityUuid(), altar.getAltarId());
             
+            // Start altar particles
+            startAltarParticles(altar);
+            
             saveAltars();
         });
         
-        plugin.debug("Created altar for " + kingdomId + " at " + formatLocation(location));
+        plugin.debug("Created altar for " + kingdomId + " at " + formatLocation(normalizedLoc));
         return altar;
+    }
+    
+    /**
+     * Starts repeating particle effect around an altar.
+     */
+    private void startAltarParticles(Altar altar) {
+        Location loc = altar.getLocation().clone().add(0, 1.2, 0);
+        
+        FoliaUtil.runAtLocationRepeating(plugin, loc, () -> {
+            // Check if altar still exists
+            if (!altars.containsKey(altar.getAltarId())) {
+                return;
+            }
+            
+            World world = loc.getWorld();
+            if (world == null) return;
+            
+            // Enchant particles
+            world.spawnParticle(Particle.ENCHANT, loc.clone().add(0, 0.3, 0), 5, 0.4, 0.3, 0.4, 0.5);
+            
+            // Occasional portal particle
+            if (Math.random() < 0.3) {
+                world.spawnParticle(Particle.PORTAL, loc, 3, 0.2, 0.1, 0.2, 0.1);
+            }
+        }, 10L, 10L); // Every half second
     }
     
     /**
@@ -85,8 +117,8 @@ public class AltarManager {
         Location loc = altar.getLocation();
         World world = loc.getWorld();
         
-        // Create BlockDisplay (lectern with book)
-        BlockData lecternData = Bukkit.createBlockData("minecraft:lectern[facing=north,has_book=true]");
+        // Create BlockDisplay (lectern with book visual)
+        BlockData lecternData = Bukkit.createBlockData("minecraft:lectern[has_book=true]");
         
         BlockDisplay display = world.spawn(loc, BlockDisplay.class, entity -> {
             entity.setBlock(lecternData);
@@ -312,6 +344,13 @@ public class AltarManager {
                 }
             }
         }
+        
+        // Start particles for all loaded altars
+        for (Altar altar : altars.values()) {
+            startAltarParticles(altar);
+        }
+        
+        plugin.debug("Started particles for " + altars.size() + " altars");
     }
     
     /**

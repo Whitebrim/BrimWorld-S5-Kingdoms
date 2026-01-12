@@ -18,6 +18,7 @@ public class GhostState {
     private final long durationMs;
     private final List<ItemStack> resurrectionCost;
     private final Location deathLocation;
+    private final Location bedSpawnLocation; // Player's bed/anchor spawn at time of death
     
     // Resurrection data (set when resurrected while offline)
     private boolean pendingResurrection = false;
@@ -28,7 +29,8 @@ public class GhostState {
     private boolean selfResurrectNotified = false;
     
     public GhostState(UUID playerUuid, String playerName, String kingdomId, 
-                      long deathTime, long durationMs, List<ItemStack> resurrectionCost, Location deathLocation) {
+                      long deathTime, long durationMs, List<ItemStack> resurrectionCost, 
+                      Location deathLocation, Location bedSpawnLocation) {
         this.playerUuid = playerUuid;
         this.playerName = playerName;
         this.kingdomId = kingdomId;
@@ -36,6 +38,15 @@ public class GhostState {
         this.durationMs = durationMs;
         this.resurrectionCost = resurrectionCost;
         this.deathLocation = deathLocation;
+        this.bedSpawnLocation = bedSpawnLocation;
+    }
+    
+    /**
+     * Legacy constructor for backward compatibility.
+     */
+    public GhostState(UUID playerUuid, String playerName, String kingdomId, 
+                      long deathTime, long durationMs, List<ItemStack> resurrectionCost, Location deathLocation) {
+        this(playerUuid, playerName, kingdomId, deathTime, durationMs, resurrectionCost, deathLocation, null);
     }
     
     /**
@@ -102,6 +113,10 @@ public class GhostState {
     
     public Location getDeathLocation() {
         return deathLocation;
+    }
+    
+    public Location getBedSpawnLocation() {
+        return bedSpawnLocation;
     }
     
     public boolean isPendingResurrection() {
