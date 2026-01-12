@@ -181,19 +181,15 @@ public class ResurrectionGUI {
             return false;
         }
         
-        // Check if player has required items
+        // Check if merchant trade slots have required items (slots 0 and 1)
         List<ItemStack> cost = ghost.getResurrectionCost();
-        if (!hasRequiredItems(player, cost)) {
+        if (!hasRequiredItemsInMerchant(merchantInv, cost)) {
             player.sendMessage(plugin.getMessagesConfig().getComponentWithPrefix("ghost.altar.not-enough-items"));
             return false;
         }
         
-        // Consume items from player inventory
-        consumeItems(player, cost);
-        
-        // Clear the merchant input slots (so items don't stay there)
-        merchantInv.setItem(0, null);
-        merchantInv.setItem(1, null);
+        // Consume items from merchant trade slots only (not from player inventory!)
+        consumeItemsFromMerchant(merchantInv, cost);
         
         // Determine resurrection location
         String locationType = plugin.getConfig().getString("ghost-system.buyback-location", "altar");
@@ -230,7 +226,43 @@ public class ResurrectionGUI {
     }
     
     /**
-     * Checks if player has all required items.
+     * Checks if merchant trade slots have all required items.
+     */
+    private boolean hasRequiredItemsInMerchant(org.bukkit.inventory.MerchantInventory merchantInv, List<ItemStack> cost) {
+        // Merchant trade slots: 0 = first input, 1 = second input
+        for (int i = 0; i < cost.size() && i < 2; i++) {
+            ItemStack required = cost.get(i);
+            ItemStack inSlot = merchantInv.getItem(i);
+            
+            if (inSlot == null || inSlot.getType() != required.getType() || inSlot.getAmount() < required.getAmount()) {
+                return false;
+            }
+        }
+        return true;
+    }
+    
+    /**
+     * Consumes required items from merchant trade slots.
+     */
+    private void consumeItemsFromMerchant(org.bukkit.inventory.MerchantInventory merchantInv, List<ItemStack> cost) {
+        // Merchant trade slots: 0 = first input, 1 = second input
+        for (int i = 0; i < cost.size() && i < 2; i++) {
+            ItemStack required = cost.get(i);
+            ItemStack inSlot = merchantInv.getItem(i);
+            
+            if (inSlot != null) {
+                int newAmount = inSlot.getAmount() - required.getAmount();
+                if (newAmount <= 0) {
+                    merchantInv.setItem(i, null);
+                } else {
+                    inSlot.setAmount(newAmount);
+                }
+            }
+        }
+    }
+    
+    /**
+     * Checks if player has all required items (kept for backward compatibility).
      */
     private boolean hasRequiredItems(Player player, List<ItemStack> cost) {
         for (ItemStack required : cost) {
