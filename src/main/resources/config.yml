@@ -1,4 +1,4 @@
-# KingdomsAddon Configuration v1.3.0
+# KingdomsAddon Configuration
 # Standalone kingdoms plugin for Folia servers
 
 # === НАСТРОЙКИ УРОНА ===
@@ -30,8 +30,7 @@ kingdoms:
 # === НАСТРОЙКИ ТЕЛЕПОРТАЦИИ ===
 teleport:
   # Задержка перед телепортацией (в тиках, 20 = 1 секунда)
-  # Увеличьте если используете nLogin или другие плагины авторизации
-  delay-ticks: 40
+  delay-ticks: 1
   
   # Телепортировать игрока при ПЕРВОМ входе на спавн королевства?
   # ВАЖНО: Спавн должен быть установлен командой /kingdoms setspawn <kingdom>
@@ -40,15 +39,6 @@ teleport:
   # Телепортировать игрока при смерти на спавн королевства (если нет кровати/якоря)?
   # ВАЖНО: Спавн должен быть установлен командой /kingdoms setspawn <kingdom>
   on-death-no-respawn: true
-
-# === НАСТРОЙКИ ИНТЕГРАЦИИ ===
-integration:
-  # Использовать интеграцию с nLogin?
-  # Если true - плагин ждёт авторизации перед обработкой игрока
-  use-nlogin: true
-  
-  # Таймаут ожидания nLogin (в секундах)
-  nlogin-timeout: 30
 
 # === ОТЛАДКА ===
 # Включите для просмотра подробных логов в консоли
@@ -61,7 +51,15 @@ ghost-system:
   
   # Длительность состояния призрака (в минутах)
   # После этого времени призрак может воскреситься сам
-  duration-minutes: 30
+  duration-minutes: 20
+  
+  # Скорость полёта призраков (0.1 = очень медленно, 1.0 = максимум)
+  # По умолчанию 0.2 (стандартная скорость креатива = 0.1)
+  flight-speed: 0.04
+  
+  # Максимальная высота полёта призраков (Y-координата)
+  # -1 = без ограничений
+  max-flight-height: 150
   
   # Где появляется игрок при разных типах воскрешения
   # Варианты: altar (у алтаря), bed (кровать/якорь -> спавн клана)
@@ -188,10 +186,10 @@ ghost-system:
     - items:
         - material: GRINDSTONE
           amount: 1
-        - material: COPPER_LANTERN
+        - material: LANTERN
           amount: 1
     - items:
-        - material: DIAMOND_SPEAR
+        - material: DIAMOND
           amount: 1
     - items:
         - material: DIRT

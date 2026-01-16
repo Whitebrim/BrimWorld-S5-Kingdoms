@@ -85,6 +85,7 @@ commands:
     altar: "&e/kingdoms altar <create|remove|list|tp> [kingdom] &7- Управление алтарями"
     resurrect: "&e/kingdoms resurrect [player] &7- Саморесурреция или воскресить игрока (админ)"
     spawn: "&e/kingdoms spawn <kingdom> &7- Телепортация на спавн королевства (админ)"
+    tpghost: "&e/kingdoms tpghost [player] &7- Телепортация к призраку (админ)"
   
   # Ghost system disabled
   ghost-system-disabled: "&cСистема призраков отключена."
@@ -202,3 +203,21 @@ ghost:
     list-header: "&6=== Алтари королевства {kingdom} ==="
     list-entry: "&7- &e{index}&7: {location}"
     list-empty: "&7Алтари не установлены."
+  
+  # Ограничение высоты полёта
+  max-height-reached: "&cВы достигли максимальной высоты полёта для призраков."
+  
+  # Команда tpghost
+  tpghost:
+    # Список призраков
+    list-header: "&6=== Активные призраки ==="
+    list-entry: "&7- &e{name} {status} &7({kingdom})"
+    usage: "&7Используйте: &e/kd tpghost <ник>"
+    # Нет призраков
+    no-ghosts: "&eСейчас нет активных призраков."
+    # Призрак не найден
+    not-found: "&cПризрак &e{player} &cне найден или оффлайн."
+    # Телепортация успешна
+    teleported: "&aВы телепортированы к призраку &e{player}&a."
+    # Телепортация не удалась
+    failed: "&cНе удалось телепортироваться к &e{player}&c."

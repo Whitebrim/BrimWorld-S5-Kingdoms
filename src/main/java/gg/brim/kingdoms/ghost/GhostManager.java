@@ -35,6 +35,10 @@ public class GhostManager {
     // Duration in milliseconds
     private long ghostDurationMs;
     
+    // Flight settings
+    private float flightSpeed;
+    private int maxFlightHeight;
+    
     public GhostManager(KingdomsAddon plugin) {
         this.plugin = plugin;
         this.ghostDataFile = new File(plugin.getDataFolder(), "ghostdata.yml");
@@ -50,6 +54,13 @@ public class GhostManager {
     private void loadConfig() {
         int minutes = plugin.getConfig().getInt("ghost-system.duration-minutes", 30);
         this.ghostDurationMs = minutes * 60L * 1000L;
+        
+        // Load flight settings
+        this.flightSpeed = (float) plugin.getConfig().getDouble("ghost-system.flight-speed", 0.2);
+        // Clamp flight speed between 0.0 and 1.0
+        this.flightSpeed = Math.max(0.0f, Math.min(1.0f, this.flightSpeed));
+        
+        this.maxFlightHeight = plugin.getConfig().getInt("ghost-system.max-flight-height", -1);
     }
     
     /**
@@ -225,9 +236,10 @@ public class GhostManager {
         // Set adventure mode
         player.setGameMode(GameMode.ADVENTURE);
         
-        // Enable flight
+        // Enable flight with configured speed
         player.setAllowFlight(true);
         player.setFlying(true);
+        player.setFlySpeed(flightSpeed);
         
         // Add invisibility effect (infinite duration)
         player.addPotionEffect(new PotionEffect(
@@ -254,9 +266,10 @@ public class GhostManager {
         player.removePotionEffect(PotionEffectType.INVISIBILITY);
         player.setGlowing(false);
         
-        // Disable flight
+        // Disable flight and reset speed to default
         player.setAllowFlight(false);
         player.setFlying(false);
+        player.setFlySpeed(0.1f); // Default Minecraft fly speed
         
         // Set survival mode
         player.setGameMode(GameMode.SURVIVAL);
@@ -779,5 +792,28 @@ public class GhostManager {
      */
     public long getGhostDurationMs() {
         return ghostDurationMs;
+    }
+    
+    /**
+     * Gets the configured flight speed for ghosts.
+     */
+    public float getFlightSpeed() {
+        return flightSpeed;
+    }
+    
+    /**
+     * Gets the maximum flight height for ghosts.
+     * @return max Y coordinate, or -1 if no limit
+     */
+    public int getMaxFlightHeight() {
+        return maxFlightHeight;
+    }
+    
+    /**
+     * Gets all current ghosts (UUID -> GhostState).
+     * Used for admin commands like tpghost.
+     */
+    public Map<UUID, GhostState> getAllGhosts() {
+        return Collections.unmodifiableMap(ghosts);
     }
 }

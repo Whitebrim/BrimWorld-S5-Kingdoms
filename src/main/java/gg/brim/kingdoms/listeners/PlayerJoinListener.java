@@ -18,15 +18,10 @@ import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Handles player join events.
- * This listener serves as a fallback when nLogin is not used,
- * or as a timeout handler when waiting for nLogin authentication.
  */
 public class PlayerJoinListener implements Listener {
     
     private final KingdomsAddon plugin;
-    
-    // Tracks players waiting for nLogin authentication
-    private final Map<UUID, Long> pendingPlayers = new ConcurrentHashMap<>();
     
     public PlayerJoinListener(KingdomsAddon plugin) {
         this.plugin = plugin;
@@ -38,26 +33,7 @@ public class PlayerJoinListener implements Listener {
         UUID uuid = player.getUniqueId();
         
         plugin.debug("PlayerJoinEvent: " + player.getName());
-        
-        // If nLogin is enabled, we wait for nLogin to process the player
-        if (plugin.isNLoginEnabled()) {
-            // Mark as pending
-            pendingPlayers.put(uuid, System.currentTimeMillis());
-            
-            // Schedule a timeout check
-            int timeoutSeconds = plugin.getConfigManager().getNLoginTimeout();
-            FoliaUtil.runDelayed(plugin, player, () -> {
-                if (pendingPlayers.containsKey(uuid) && player.isOnline()) {
-                    plugin.debug("nLogin timeout for " + player.getName() + ", processing manually");
-                    pendingPlayers.remove(uuid);
-                    processPlayer(player);
-                }
-            }, timeoutSeconds * 20L);
-            
-            return;
-        }
-        
-        // No nLogin, process immediately with a small delay
+
         // (allows other plugins to finish their join processing)
         FoliaUtil.runDelayed(plugin, player, () -> {
             if (player.isOnline()) {
@@ -69,7 +45,6 @@ public class PlayerJoinListener implements Listener {
     @EventHandler
     public void onPlayerQuit(PlayerQuitEvent event) {
         UUID uuid = event.getPlayer().getUniqueId();
-        pendingPlayers.remove(uuid);
         plugin.getKingdomManager().unmarkProcessed(uuid);
     }
     
@@ -101,29 +76,5 @@ public class PlayerJoinListener implements Listener {
         FoliaUtil.runOnEntity(plugin, player, () -> {
             player.kick(kickComponent);
         });
-    }
-    
-    /**
-     * Called by NLoginListener when player authenticates.
-     */
-    public void onPlayerAuthenticated(Player player) {
-        UUID uuid = player.getUniqueId();
-        pendingPlayers.remove(uuid);
-        
-        plugin.debug("Player " + player.getName() + " authenticated via nLogin");
-        
-        // Process on the entity's region
-        FoliaUtil.runOnEntity(plugin, player, () -> {
-            if (player.isOnline()) {
-                processPlayer(player);
-            }
-        });
-    }
-    
-    /**
-     * Checks if a player is pending nLogin authentication.
-     */
-    public boolean isPending(UUID uuid) {
-        return pendingPlayers.containsKey(uuid);
     }
 }

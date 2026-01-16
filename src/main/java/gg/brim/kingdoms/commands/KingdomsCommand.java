@@ -28,7 +28,7 @@ public class KingdomsCommand implements CommandExecutor, TabCompleter {
     private final KingdomsAddon plugin;
     
     private static final List<String> SUBCOMMANDS = Arrays.asList(
-            "setspawn", "reload", "info", "assign", "list", "help", "altar", "resurrect", "spawn", "debug"
+            "setspawn", "reload", "info", "assign", "list", "help", "altar", "resurrect", "spawn", "debug", "tpghost"
     );
     
     public KingdomsCommand(KingdomsAddon plugin) {
@@ -56,6 +56,7 @@ public class KingdomsCommand implements CommandExecutor, TabCompleter {
             case "resurrect" -> handleResurrect(sender, args);
             case "spawn" -> handleSpawn(sender, args);
             case "debug" -> handleDebug(sender);
+            case "tpghost" -> handleTpGhost(sender, args);
             default -> {
                 sender.sendMessage(plugin.getMessagesConfig().getComponentWithPrefix("commands.unknown"));
                 yield true;
@@ -305,6 +306,11 @@ public class KingdomsCommand implements CommandExecutor, TabCompleter {
         if (plugin.getConfig().getBoolean("ghost-system.enabled", false)) {
             sender.sendMessage(plugin.getMessagesConfig().getComponent("commands.help.altar"));
             sender.sendMessage(plugin.getMessagesConfig().getComponent("commands.help.resurrect"));
+            
+            // Admin-only tpghost command
+            if (sender.hasPermission("kingdoms.admin")) {
+                sender.sendMessage(plugin.getMessagesConfig().getComponent("commands.help.tpghost"));
+            }
         }
         
         return true;
@@ -836,6 +842,101 @@ public class KingdomsCommand implements CommandExecutor, TabCompleter {
         return true;
     }
     
+    /**
+     * Handles /kingdoms tpghost <player> - teleport to a ghost player
+     * Since ghosts are hidden from normal /tp, this command allows admins to find them.
+     */
+    private boolean handleTpGhost(CommandSender sender, String[] args) {
+        if (!sender.hasPermission("kingdoms.admin")) {
+            sender.sendMessage(plugin.getMessagesConfig().getComponentWithPrefix("plugin.no-permission"));
+            return true;
+        }
+        
+        if (!(sender instanceof Player player)) {
+            sender.sendMessage(plugin.getMessagesConfig().getComponentWithPrefix("plugin.player-only"));
+            return true;
+        }
+        
+        if (!plugin.getConfig().getBoolean("ghost-system.enabled", false)) {
+            sender.sendMessage(plugin.getMessagesConfig().getComponentWithPrefix("commands.ghost-system-disabled"));
+            return true;
+        }
+        
+        if (args.length < 2) {
+            // Show list of all ghosts if no argument
+            var ghosts = plugin.getGhostManager().getAllGhosts();
+            if (ghosts.isEmpty()) {
+                sender.sendMessage(plugin.getMessagesConfig().getComponentWithPrefix("ghost.tpghost.no-ghosts"));
+                return true;
+            }
+            
+            sender.sendMessage(plugin.getMessagesConfig().getComponent("ghost.tpghost.list-header"));
+            for (var entry : ghosts.entrySet()) {
+                Player ghostPlayer = Bukkit.getPlayer(entry.getKey());
+                String name = entry.getValue().getPlayerName();
+                String status = ghostPlayer != null && ghostPlayer.isOnline() ? "§a(онлайн)" : "§7(оффлайн)";
+                String kingdom = plugin.getConfigManager().getKingdomDisplayName(entry.getValue().getKingdomId());
+                
+                sender.sendMessage(plugin.getMessagesConfig().getComponent(
+                        "ghost.tpghost.list-entry",
+                        MessagesConfig.placeholders()
+                                .add("name", name)
+                                .add("status", status)
+                                .add("kingdom", kingdom)
+                                .build()
+                ));
+            }
+            
+            sender.sendMessage(plugin.getMessagesConfig().getComponent("ghost.tpghost.usage"));
+            return true;
+        }
+        
+        String targetName = args[1];
+        
+        // Find ghost by name (partial match)
+        Player targetGhost = null;
+        for (var entry : plugin.getGhostManager().getAllGhosts().entrySet()) {
+            if (entry.getValue().getPlayerName().equalsIgnoreCase(targetName)) {
+                targetGhost = Bukkit.getPlayer(entry.getKey());
+                break;
+            }
+        }
+        
+        // Try online players if not found by exact name
+        if (targetGhost == null) {
+            Player onlineTarget = Bukkit.getPlayer(targetName);
+            if (onlineTarget != null && plugin.getGhostManager().isGhost(onlineTarget.getUniqueId())) {
+                targetGhost = onlineTarget;
+            }
+        }
+        
+        if (targetGhost == null || !targetGhost.isOnline()) {
+            sender.sendMessage(plugin.getMessagesConfig().getComponentWithPrefix(
+                    "ghost.tpghost.not-found",
+                    MessagesConfig.placeholder("player", targetName)
+            ));
+            return true;
+        }
+        
+        // Teleport to the ghost
+        final Player finalTarget = targetGhost;
+        FoliaUtil.teleportAsync(player, targetGhost.getLocation()).thenAccept(success -> {
+            if (success) {
+                player.sendMessage(plugin.getMessagesConfig().getComponentWithPrefix(
+                        "ghost.tpghost.teleported",
+                        MessagesConfig.placeholder("player", finalTarget.getName())
+                ));
+            } else {
+                player.sendMessage(plugin.getMessagesConfig().getComponentWithPrefix(
+                        "ghost.tpghost.failed",
+                        MessagesConfig.placeholder("player", finalTarget.getName())
+                ));
+            }
+        });
+        
+        return true;
+    }
+    
     @Override
     public @Nullable List<String> onTabComplete(@NotNull CommandSender sender, @NotNull Command command,
                                                 @NotNull String alias, @NotNull String[] args) {
@@ -870,6 +971,15 @@ public class KingdomsCommand implements CommandExecutor, TabCompleter {
                         completions.addAll(Bukkit.getOnlinePlayers().stream()
                                 .filter(p -> plugin.getGhostManager().isGhost(p.getUniqueId()))
                                 .map(Player::getName)
+                                .filter(n -> n.toLowerCase().startsWith(partial))
+                                .collect(Collectors.toList()));
+                    }
+                }
+                case "tpghost" -> {
+                    // Show all ghost player names (online and offline from ghost data)
+                    if (sender.hasPermission("kingdoms.admin") && plugin.getGhostManager() != null) {
+                        completions.addAll(plugin.getGhostManager().getAllGhosts().values().stream()
+                                .map(ghost -> ghost.getPlayerName())
                                 .filter(n -> n.toLowerCase().startsWith(partial))
                                 .collect(Collectors.toList()));
                     }

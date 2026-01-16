@@ -20,10 +20,6 @@ public class ConfigManager {
     private boolean teleportOnFirstJoin;
     private boolean teleportOnDeathNoRespawn;
     
-    // Integration settings
-    private boolean useNLogin;
-    private int nLoginTimeout;
-    
     // Debug
     private boolean debug;
     
@@ -47,10 +43,6 @@ public class ConfigManager {
         teleportDelayTicks = config.getInt("teleport.delay-ticks", 20);
         teleportOnFirstJoin = config.getBoolean("teleport.on-first-join", true);
         teleportOnDeathNoRespawn = config.getBoolean("teleport.on-death-no-respawn", true);
-        
-        // Integration settings
-        useNLogin = config.getBoolean("integration.use-nlogin", true);
-        nLoginTimeout = config.getInt("integration.nlogin-timeout", 30);
         
         // Debug
         debug = config.getBoolean("debug", false);
@@ -91,14 +83,6 @@ public class ConfigManager {
     
     public boolean isTeleportOnDeathNoRespawn() {
         return teleportOnDeathNoRespawn;
-    }
-    
-    public boolean isUseNLogin() {
-        return useNLogin;
-    }
-    
-    public int getNLoginTimeout() {
-        return nLoginTimeout;
     }
     
     public boolean isDebug() {

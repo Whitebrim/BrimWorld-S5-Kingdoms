@@ -15,6 +15,7 @@ import org.bukkit.event.entity.EntityTargetLivingEntityEvent;
 import org.bukkit.event.inventory.InventoryOpenEvent;
 import org.bukkit.event.inventory.InventoryType;
 import org.bukkit.event.player.*;
+import org.bukkit.util.Vector;
 
 import java.util.Set;
 
@@ -246,6 +247,47 @@ public class GhostInteractionListener implements Listener {
         // Cancel all game events from ghosts (footsteps, etc.)
         event.setCancelled(true);
     }
+    
+    /**
+     * Restricts maximum flight height for ghosts.
+     */
+    @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
+    public void onPlayerMove(PlayerMoveEvent event) {
+        Player player = event.getPlayer();
+        if (!plugin.getGhostManager().isGhost(player.getUniqueId())) return;
+        
+        int maxHeight = plugin.getGhostManager().getMaxFlightHeight();
+        if (maxHeight < 0) return; // No limit configured
+        
+        if (event.getTo() == null) return;
+        
+        double toY = event.getTo().getY();
+        double fromY = event.getFrom().getY();
+        
+        // Only restrict if trying to fly higher than max
+        if (toY > maxHeight && toY > fromY) {
+            // Push player back down
+            event.getTo().setY(maxHeight);
+            
+            // Stop upward velocity
+            Vector velocity = player.getVelocity();
+            if (velocity.getY() > 0) {
+                velocity.setY(0);
+                player.setVelocity(velocity);
+            }
+            
+            // Notify player (only once per second to avoid spam)
+            Long lastNotify = lastHeightNotification.get(player.getUniqueId());
+            long now = System.currentTimeMillis();
+            if (lastNotify == null || now - lastNotify > 1000) {
+                player.sendMessage(plugin.getMessagesConfig().getComponentWithPrefix("ghost.max-height-reached"));
+                lastHeightNotification.put(player.getUniqueId(), now);
+            }
+        }
+    }
+    
+    // Track last height notification to avoid spam
+    private final java.util.Map<java.util.UUID, Long> lastHeightNotification = new java.util.concurrent.ConcurrentHashMap<>();
     
     /**
      * Checks if a material is allowed for ghost interaction.

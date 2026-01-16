@@ -323,7 +323,7 @@ public class KingdomManager {
             return;
         }
         
-        // Schedule teleportation with delay (for nLogin compatibility)
+        // Schedule teleportation with delay
         int delay = plugin.getConfigManager().getTeleportDelayTicks();
         plugin.debug("Scheduling teleport with delay: " + delay + " ticks");
         

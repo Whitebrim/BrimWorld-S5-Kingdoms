@@ -36,8 +36,6 @@ public class KingdomsAddon extends JavaPlugin {
     private ResurrectionGUI resurrectionGUI;
     private RespawnHook respawnHook;
     
-    private boolean nLoginEnabled = false;
-    
     @Override
     public void onEnable() {
         instance = this;
@@ -51,9 +49,6 @@ public class KingdomsAddon extends JavaPlugin {
         this.spawnManager = new SpawnManager(this);
         this.playerDataManager = new PlayerDataManager(this);
         this.kingdomManager = new KingdomManager(this);
-        
-        // Check for nLogin
-        checkNLogin();
         
         // Initialize ghost system if enabled
         if (getConfig().getBoolean("ghost-system.enabled", false)) {
@@ -95,23 +90,6 @@ public class KingdomsAddon extends JavaPlugin {
     }
     
     /**
-     * Checks if nLogin is available and enabled in config.
-     */
-    private void checkNLogin() {
-        if (!configManager.isUseNLogin()) {
-            getLogger().info("nLogin integration disabled in config.");
-            return;
-        }
-        
-        if (Bukkit.getPluginManager().getPlugin("nLogin") != null) {
-            nLoginEnabled = true;
-            getLogger().info("nLogin detected! Using nLogin integration for player authentication.");
-        } else {
-            getLogger().info("nLogin not found. Using standard PlayerJoinEvent.");
-        }
-    }
-    
-    /**
      * Initializes the ghost system components.
      */
     private void initializeGhostSystem() {
@@ -145,20 +123,9 @@ public class KingdomsAddon extends JavaPlugin {
         this.respawnHook = new RespawnHook(this);
         Bukkit.getPluginManager().registerEvents(respawnHook, this);
 
-        // Register join listener (handles non-nLogin case or fallback)
+        // Register join listener
         Bukkit.getPluginManager().registerEvents(new PlayerJoinListener(this), this);
         getLogger().info("Registered PlayerJoinListener");
-        
-        // Register nLogin listener if available
-        if (nLoginEnabled) {
-            try {
-                Bukkit.getPluginManager().registerEvents(new NLoginListener(this), this);
-                getLogger().info("nLogin listener registered.");
-            } catch (NoClassDefFoundError e) {
-                getLogger().warning("Failed to register nLogin listener. Falling back to standard join handling.");
-                nLoginEnabled = false;
-            }
-        }
     }
     
     /**
@@ -225,10 +192,6 @@ public class KingdomsAddon extends JavaPlugin {
     
     public RespawnHook getRespawnHook() {
         return respawnHook;
-    }
-    
-    public boolean isNLoginEnabled() {
-        return nLoginEnabled;
     }
     
     /**
