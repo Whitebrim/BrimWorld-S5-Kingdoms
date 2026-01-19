@@ -1,7 +1,9 @@
 package gg.brim.kingdoms;
 
+import gg.brim.kingdoms.api.KingdomsAPI;
 import gg.brim.kingdoms.commands.KingdomsCommand;
 import gg.brim.kingdoms.config.ConfigManager;
+import gg.brim.kingdoms.config.ConfigUpdater;
 import gg.brim.kingdoms.config.MessagesConfig;
 import gg.brim.kingdoms.ghost.GhostManager;
 import gg.brim.kingdoms.ghost.altar.AltarManager;
@@ -13,6 +15,8 @@ import gg.brim.kingdoms.listeners.*;
 import gg.brim.kingdoms.manager.KingdomManager;
 import gg.brim.kingdoms.manager.SpawnManager;
 import gg.brim.kingdoms.manager.PlayerDataManager;
+import gg.brim.kingdoms.team.TeamColorManager;
+import gg.brim.kingdoms.placeholder.KingdomsPlaceholderExpansion;
 import org.bukkit.Bukkit;
 import org.bukkit.plugin.java.JavaPlugin;
 
@@ -36,9 +40,22 @@ public class KingdomsAddon extends JavaPlugin {
     private ResurrectionGUI resurrectionGUI;
     private RespawnHook respawnHook;
     
+    // Team colors
+    private TeamColorManager teamColorManager;
+    
+    // API
+    private KingdomsAPI api;
+    
+    // Config updater
+    private ConfigUpdater configUpdater;
+    
     @Override
     public void onEnable() {
         instance = this;
+        
+        // Update configs with new values (before loading)
+        this.configUpdater = new ConfigUpdater(this);
+        configUpdater.updateAll();
         
         // Initialize configuration
         saveDefaultConfig();
@@ -54,6 +71,14 @@ public class KingdomsAddon extends JavaPlugin {
         if (getConfig().getBoolean("ghost-system.enabled", false)) {
             initializeGhostSystem();
         }
+        
+        // Initialize team colors if enabled
+        if (getConfig().getBoolean("team-colors.enabled", true)) {
+            initializeTeamColors();
+        }
+        
+        // Initialize API
+        this.api = new KingdomsAPI(this);
         
         // Register listeners
         registerListeners();
@@ -83,6 +108,14 @@ public class KingdomsAddon extends JavaPlugin {
             altarManager.saveAltars();
         }
         
+        // Cleanup team colors
+        if (teamColorManager != null) {
+            teamColorManager.cleanup();
+        }
+        
+        // Clear API instance
+        KingdomsAPI.clearInstance();
+        
         if (messagesConfig != null) {
             getLogger().info(messagesConfig.getMessage("plugin.disabled"));
         }
@@ -105,6 +138,27 @@ public class KingdomsAddon extends JavaPlugin {
         Bukkit.getPluginManager().registerEvents(new GhostVisibilityListener(this), this);
         
         getLogger().info("Ghost system initialized!");
+    }
+    
+    /**
+     * Initializes the team color system.
+     */
+    private void initializeTeamColors() {
+        getLogger().info("Initializing team colors...");
+        
+        this.teamColorManager = new TeamColorManager(this);
+        
+        // Register PlaceholderAPI expansion if available
+        if (Bukkit.getPluginManager().getPlugin("PlaceholderAPI") != null) {
+            new KingdomsPlaceholderExpansion(this).register();
+            getLogger().info("PlaceholderAPI detected! Registered kingdoms placeholders.");
+            getLogger().info("Available: %kingdoms_color%, %kingdoms_color_legacy%, %kingdoms_kingdom%, etc.");
+        } else {
+            getLogger().info("PlaceholderAPI not found. Placeholders will not be available.");
+            getLogger().info("Install PlaceholderAPI for chat/tab color integration.");
+        }
+        
+        getLogger().info("Team colors initialized!");
     }
     
     /**
@@ -141,6 +195,11 @@ public class KingdomsAddon extends JavaPlugin {
      * Reloads all plugin configuration.
      */
     public void reload() {
+        // Update configs with any new values
+        if (configUpdater != null) {
+            configUpdater.updateAll();
+        }
+        
         reloadConfig();
         configManager.reload();
         messagesConfig.reload();
@@ -149,6 +208,10 @@ public class KingdomsAddon extends JavaPlugin {
         
         if (ghostManager != null) {
             ghostManager.reload();
+        }
+        
+        if (teamColorManager != null) {
+            teamColorManager.reload();
         }
     }
     
@@ -192,6 +255,14 @@ public class KingdomsAddon extends JavaPlugin {
     
     public RespawnHook getRespawnHook() {
         return respawnHook;
+    }
+    
+    public TeamColorManager getTeamColorManager() {
+        return teamColorManager;
+    }
+    
+    public KingdomsAPI getApi() {
+        return api;
     }
     
     /**

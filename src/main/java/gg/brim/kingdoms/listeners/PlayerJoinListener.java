@@ -1,6 +1,7 @@
 package gg.brim.kingdoms.listeners;
 
 import gg.brim.kingdoms.KingdomsAddon;
+import gg.brim.kingdoms.api.KingdomsAPI;
 import gg.brim.kingdoms.config.MessagesConfig;
 import gg.brim.kingdoms.util.FoliaUtil;
 import net.kyori.adventure.text.Component;
@@ -57,11 +58,28 @@ public class PlayerJoinListener implements Listener {
             return;
         }
         
+        // Check if player is an admin - admins bypass kingdom assignment
+        if (player.hasPermission(KingdomsAPI.ADMIN_PERMISSION)) {
+            plugin.debug("Player " + player.getName() + " is admin, bypassing kingdom check");
+            plugin.getKingdomManager().markProcessed(player.getUniqueId());
+            
+            // Update team colors for admin
+            if (plugin.getTeamColorManager() != null) {
+                plugin.getTeamColorManager().updatePlayer(player);
+            }
+            return;
+        }
+        
         boolean success = plugin.getKingdomManager().processPlayerJoin(player);
         
         if (!success) {
             // Player not whitelisted - kick them
             kickPlayerNotWhitelisted(player);
+        } else {
+            // Update team colors for kingdom member
+            if (plugin.getTeamColorManager() != null) {
+                plugin.getTeamColorManager().updatePlayer(player);
+            }
         }
     }
     

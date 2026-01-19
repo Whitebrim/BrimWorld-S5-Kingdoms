@@ -167,11 +167,13 @@ public class GhostManager {
         
         ghosts.put(uuid, state);
         
-        // Apply ghost effects
+        // Apply ghost effects (invisibility + glowing)
         applyGhostEffects(player);
         
-        // Hide from living players, show to other ghosts
-        updateVisibilityForGhost(player);
+        // Update team colors (show ghost status)
+        if (plugin.getTeamColorManager() != null) {
+            plugin.getTeamColorManager().updatePlayer(player);
+        }
         
         // Start actionbar timer for this ghost
         startActionbarTimer(player, state);
@@ -231,6 +233,14 @@ public class GhostManager {
     
     /**
      * Applies ghost mode effects to a player.
+     * Ghosts remain in the same dimension as other players, but:
+     * - Are invisible (invisibility potion effect, if enabled)
+     * - Have a glowing outline visible to all players (if enabled)
+     * - Can fly in adventure mode
+     * - Cannot interact with the world (handled by GhostInteractionListener)
+     * 
+     * This allows ghosts to be heard via voice chat (Simple Voice Chat)
+     * while still appearing as spectral entities.
      */
     public void applyGhostEffects(Player player) {
         // Set adventure mode
@@ -241,28 +251,34 @@ public class GhostManager {
         player.setFlying(true);
         player.setFlySpeed(flightSpeed);
         
-        // Add invisibility effect (infinite duration)
-        player.addPotionEffect(new PotionEffect(
-                PotionEffectType.INVISIBILITY,
-                PotionEffect.INFINITE_DURATION,
-                0,
-                false,  // ambient
-                false,  // particles
-                false   // icon
-        ));
+        // Add invisibility effect if enabled (infinite duration)
+        if (plugin.getConfig().getBoolean("ghost-system.ghost-effects.invisibility", true)) {
+            player.addPotionEffect(new PotionEffect(
+                    PotionEffectType.INVISIBILITY,
+                    PotionEffect.INFINITE_DURATION,
+                    0,
+                    false,  // ambient
+                    false,  // particles
+                    false   // icon
+            ));
+        }
         
-        // Enable glowing (white glow since Folia doesn't support scoreboard teams)
-        player.setGlowing(true);
+        // Enable glowing if enabled (visible outline through walls and invisibility)
+        if (plugin.getConfig().getBoolean("ghost-system.ghost-effects.glowing", true)) {
+            player.setGlowing(true);
+        }
         
-        // Visual feedback - particles around player
-        spawnGhostParticles(player);
+        // Visual feedback - particles around player (if enabled)
+        if (plugin.getConfig().getBoolean("ghost-system.ghost-effects.particles", true)) {
+            spawnGhostParticles(player);
+        }
     }
     
     /**
      * Removes ghost mode effects from a player.
      */
     public void removeGhostEffects(Player player) {
-        // Remove effects
+        // Remove effects (safe to call even if not present)
         player.removePotionEffect(PotionEffectType.INVISIBILITY);
         player.setGlowing(false);
         
@@ -273,37 +289,6 @@ public class GhostManager {
         
         // Set survival mode
         player.setGameMode(GameMode.SURVIVAL);
-    }
-    
-    /**
-     * Updates visibility for a ghost player.
-     * Hides from living players, shows to other ghosts.
-     */
-    public void updateVisibilityForGhost(Player ghost) {
-        for (Player other : Bukkit.getOnlinePlayers()) {
-            if (other.equals(ghost)) continue;
-            
-            if (isGhost(other.getUniqueId())) {
-                // Other is also a ghost - show each other
-                ghost.showPlayer(plugin, other);
-                other.showPlayer(plugin, ghost);
-            } else {
-                // Other is alive - hide ghost from them
-                other.hidePlayer(plugin, ghost);
-            }
-        }
-    }
-    
-    /**
-     * Updates visibility when a living player joins.
-     */
-    public void updateVisibilityForLivingPlayer(Player living) {
-        for (UUID ghostUuid : ghosts.keySet()) {
-            Player ghost = Bukkit.getPlayer(ghostUuid);
-            if (ghost != null && ghost.isOnline()) {
-                living.hidePlayer(plugin, ghost);
-            }
-        }
     }
     
     /**
@@ -348,9 +333,9 @@ public class GhostManager {
         // Remove ghost effects
         removeGhostEffects(player);
         
-        // Restore visibility
-        for (Player other : Bukkit.getOnlinePlayers()) {
-            other.showPlayer(plugin, player);
+        // Update team colors (remove ghost status)
+        if (plugin.getTeamColorManager() != null) {
+            plugin.getTeamColorManager().updatePlayer(player);
         }
         
         // Teleport to resurrection location
@@ -410,7 +395,6 @@ public class GhostManager {
             // Reapply ghost effects and restart actionbar timer
             FoliaUtil.runDelayed(plugin, player, () -> {
                 applyGhostEffects(player);
-                updateVisibilityForGhost(player);
                 startActionbarTimer(player, state);
             }, 1L);
         }
@@ -421,13 +405,6 @@ public class GhostManager {
      */
     public boolean isGhost(UUID uuid) {
         return ghosts.containsKey(uuid);
-    }
-    
-    /**
-     * Gets the ghost state for a player.
-     */
-    public GhostState getGhostState(UUID uuid) {
-        return ghosts.get(uuid);
     }
     
     /**
@@ -815,5 +792,14 @@ public class GhostManager {
      */
     public Map<UUID, GhostState> getAllGhosts() {
         return Collections.unmodifiableMap(ghosts);
+    }
+    
+    /**
+     * Gets the ghost state for a player.
+     * @param playerUuid The player's UUID
+     * @return GhostState, or null if not a ghost
+     */
+    public GhostState getGhostState(UUID playerUuid) {
+        return ghosts.get(playerUuid);
     }
 }

@@ -1,6 +1,7 @@
 package gg.brim.kingdoms.ghost.listener;
 
 import gg.brim.kingdoms.KingdomsAddon;
+import gg.brim.kingdoms.api.KingdomsAPI;
 import gg.brim.kingdoms.util.FoliaUtil;
 import org.bukkit.Location;
 import org.bukkit.entity.Player;
@@ -31,6 +32,12 @@ public class GhostVisibilityListener implements Listener {
         
         Player player = event.getPlayer();
         
+        // Admins don't become ghosts
+        if (player.hasPermission(KingdomsAPI.ADMIN_PERMISSION)) {
+            plugin.debug("Player " + player.getName() + " is admin, skipping ghost visibility check");
+            return;
+        }
+        
         // Delay to ensure player is fully loaded
         FoliaUtil.runDelayed(plugin, player, () -> {
             if (!player.isOnline()) return;
@@ -43,10 +50,13 @@ public class GhostVisibilityListener implements Listener {
             if (plugin.getGhostManager().isGhost(player.getUniqueId())) {
                 // This player is a ghost - handle their rejoin
                 plugin.getGhostManager().handleGhostJoin(player);
-            } else {
-                // This player is alive - hide all ghosts from them
-                plugin.getGhostManager().updateVisibilityForLivingPlayer(player);
+                
+                // Update team colors for ghost
+                if (plugin.getTeamColorManager() != null) {
+                    plugin.getTeamColorManager().updatePlayer(player);
+                }
             }
+            // Living players don't need special handling - ghosts are visible via glowing effect
         }, 20L); // 1 second delay
     }
     
@@ -94,6 +104,11 @@ public class GhostVisibilityListener implements Listener {
                 // Teleport ghost to death location
                 if (deathLocation != null && deathLocation.getWorld() != null) {
                     FoliaUtil.teleportAsync(player, deathLocation);
+                }
+                
+                // Update team colors for ghost
+                if (plugin.getTeamColorManager() != null) {
+                    plugin.getTeamColorManager().updatePlayer(player);
                 }
             }
         }, 5L);

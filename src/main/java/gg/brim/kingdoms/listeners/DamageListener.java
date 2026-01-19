@@ -1,6 +1,7 @@
 package gg.brim.kingdoms.listeners;
 
 import gg.brim.kingdoms.KingdomsAddon;
+import gg.brim.kingdoms.api.KingdomsAPI;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.Player;
 import org.bukkit.entity.Projectile;
@@ -35,6 +36,15 @@ public class DamageListener implements Listener {
         
         // Don't modify self-damage
         if (attacker.equals(victim)) {
+            return;
+        }
+        
+        // Admins deal and receive full damage (not affected by kingdom modifiers)
+        boolean attackerIsAdmin = attacker.hasPermission(KingdomsAPI.ADMIN_PERMISSION);
+        boolean victimIsAdmin = victim.hasPermission(KingdomsAPI.ADMIN_PERMISSION);
+        
+        if (attackerIsAdmin || victimIsAdmin) {
+            plugin.debug("Admin involved in damage: " + attacker.getName() + " -> " + victim.getName() + " (no modifier)");
             return;
         }
         

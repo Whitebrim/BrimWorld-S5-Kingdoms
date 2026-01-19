@@ -6,6 +6,9 @@ folia-supported: true
 description: Standalone kingdoms plugin for Folia servers with ghost system
 author: Brim
 website: https://github.com/Whitebrim
+softdepend:
+  - TAB
+  - PlaceholderAPI
 
 commands:
   kingdoms:
@@ -22,6 +25,10 @@ permissions:
       kingdoms.reload: true
       kingdoms.assign: true
       kingdoms.info: true
+      kingdoms.admin: true
+  kingdoms.admin:
+    description: Bypass kingdom assignment, ghost system, and damage modifiers
+    default: op
   kingdoms.setspawn:
     description: Allows setting kingdom spawn points
     default: op

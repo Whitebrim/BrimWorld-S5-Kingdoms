@@ -1,6 +1,7 @@
 package gg.brim.kingdoms.ghost.listener;
 
 import gg.brim.kingdoms.KingdomsAddon;
+import gg.brim.kingdoms.api.KingdomsAPI;
 import gg.brim.kingdoms.ghost.altar.Altar;
 import io.papermc.paper.event.player.PlayerPurchaseEvent;
 import org.bukkit.entity.Interaction;
@@ -46,11 +47,17 @@ public class AltarInteractionListener implements Listener {
             return;
         }
         
+        // Check if player is admin - admins can use all altars
+        boolean isAdmin = player.hasPermission(KingdomsAPI.ADMIN_PERMISSION);
+        
         // Check if player is in the same kingdom as the altar (use fallback method)
-        String playerKingdom = plugin.getKingdomManager().getPlayerKingdomId(player.getUniqueId());
-        if (playerKingdom == null || !playerKingdom.equals(altar.getKingdomId())) {
-            player.sendMessage(plugin.getMessagesConfig().getComponentWithPrefix("ghost.altar.wrong-kingdom"));
-            return;
+        // Admins bypass this check
+        if (!isAdmin) {
+            String playerKingdom = plugin.getKingdomManager().getPlayerKingdomId(player.getUniqueId());
+            if (playerKingdom == null || !playerKingdom.equals(altar.getKingdomId())) {
+                player.sendMessage(plugin.getMessagesConfig().getComponentWithPrefix("ghost.altar.wrong-kingdom"));
+                return;
+            }
         }
         
         // Check if player is a ghost

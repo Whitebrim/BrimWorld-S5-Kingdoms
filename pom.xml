@@ -6,7 +6,7 @@
 
     <groupId>gg.brim</groupId>
     <artifactId>KingdomsAddon</artifactId>
-    <version>1.5.0</version>
+    <version>1.7.0</version>
     <packaging>jar</packaging>
 
     <name>KingdomsAddon</name>
@@ -26,6 +26,14 @@
             <id>nickuc-repo</id>
             <url>https://repo.nickuc.com/maven-releases/</url>
         </repository>
+        <repository>
+            <id>jitpack.io</id>
+            <url>https://jitpack.io</url>
+        </repository>
+        <repository>
+            <id>placeholderapi</id>
+            <url>https://repo.extendedclip.com/content/repositories/placeholderapi/</url>
+        </repository>
     </repositories>
 
     <dependencies>
@@ -34,6 +42,22 @@
             <artifactId>folia-api</artifactId>
             <version>1.21.4-R0.1-SNAPSHOT</version>
             <scope>provided</scope>
+        </dependency>
+        <!-- TAB API (optional) -->
+        <dependency>
+            <groupId>com.github.NEZNAMY</groupId>
+            <artifactId>TAB-API</artifactId>
+            <version>5.0.3</version>
+            <scope>provided</scope>
+            <optional>true</optional>
+        </dependency>
+        <!-- PlaceholderAPI (optional) -->
+        <dependency>
+            <groupId>me.clip</groupId>
+            <artifactId>placeholderapi</artifactId>
+            <version>2.11.6</version>
+            <scope>provided</scope>
+            <optional>true</optional>
         </dependency>
     </dependencies>
 

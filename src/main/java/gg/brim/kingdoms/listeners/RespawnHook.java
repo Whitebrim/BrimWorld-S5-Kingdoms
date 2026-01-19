@@ -1,6 +1,7 @@
 package gg.brim.kingdoms.listeners;
 
 import gg.brim.kingdoms.KingdomsAddon;
+import gg.brim.kingdoms.api.KingdomsAPI;
 import gg.brim.kingdoms.util.FoliaUtil;
 import io.papermc.paper.threadedregions.scheduler.ScheduledTask;
 import org.bukkit.Location;
@@ -59,6 +60,12 @@ public final class RespawnHook implements Listener {
         UUID uuid = player.getUniqueId();
 
         if (waiting.containsKey(uuid)) {
+            return;
+        }
+        
+        // Admins don't become ghosts
+        if (player.hasPermission(KingdomsAPI.ADMIN_PERMISSION)) {
+            plugin.debug("Player " + player.getName() + " is admin, skipping ghost system");
             return;
         }
 
