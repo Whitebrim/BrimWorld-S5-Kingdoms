@@ -156,9 +156,9 @@ line: '&7Kingdom: %kingdoms_kingdom_name%'
 </repositories>
 
 <dependency>
-    <groupId>com.github.YourGithub</groupId>
-    <artifactId>KingdomsAddon</artifactId>
-    <version>1.7.0</version>
+    <groupId>com.github.Whitebrim</groupId>
+    <artifactId>BrimWorld-S5-Kingdoms</artifactId>
+    <version>Tag</version>
     <scope>provided</scope>
 </dependency>
 ```
