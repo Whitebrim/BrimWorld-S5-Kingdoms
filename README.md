@@ -143,8 +143,8 @@ players:
 ## API для разработчиков
 
 ```java
-import gg.brim.kingdoms.KingdomsAddon;
-import gg.brim.kingdoms.manager.KingdomManager;
+import su.brim.kingdoms.KingdomsAddon;
+import su.brim.kingdoms.manager.KingdomManager;
 
 // Получить плагин
 KingdomsAddon plugin = KingdomsAddon.getInstance();

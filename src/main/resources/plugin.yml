@@ -1,6 +1,6 @@
 name: KingdomsAddon
 version: ${project.version}
-main: gg.brim.kingdoms.KingdomsAddon
+main: su.brim.kingdoms.KingdomsAddon
 api-version: '1.21'
 folia-supported: true
 description: Standalone kingdoms plugin for Folia servers with ghost system

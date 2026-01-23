@@ -7,7 +7,7 @@ KingdomsAddon provides a public API for other plugins to access kingdom and ghos
 ## Getting the API Instance
 
 ```java
-import gg.brim.kingdoms.api.KingdomsAPI;
+import su.brim.kingdoms.api.KingdomsAPI;
 
 // Get the API instance
 KingdomsAPI api = KingdomsAPI.getInstance();
