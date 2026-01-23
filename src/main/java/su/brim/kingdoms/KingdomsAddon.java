@@ -6,11 +6,13 @@ import su.brim.kingdoms.config.ConfigManager;
 import su.brim.kingdoms.config.ConfigUpdater;
 import su.brim.kingdoms.config.MessagesConfig;
 import su.brim.kingdoms.ghost.GhostManager;
+import su.brim.kingdoms.ghost.ImmortalityManager;
 import su.brim.kingdoms.ghost.altar.AltarManager;
 import su.brim.kingdoms.ghost.gui.ResurrectionGUI;
 import su.brim.kingdoms.ghost.listener.AltarInteractionListener;
 import su.brim.kingdoms.ghost.listener.GhostInteractionListener;
 import su.brim.kingdoms.ghost.listener.GhostVisibilityListener;
+import su.brim.kingdoms.ghost.listener.ImmortalityListener;
 import su.brim.kingdoms.listeners.*;
 import su.brim.kingdoms.manager.KingdomManager;
 import su.brim.kingdoms.manager.SpawnManager;
@@ -39,6 +41,7 @@ public class KingdomsAddon extends JavaPlugin {
     private AltarManager altarManager;
     private ResurrectionGUI resurrectionGUI;
     private RespawnHook respawnHook;
+    private ImmortalityManager immortalityManager;
     
     // Team colors
     private TeamColorManager teamColorManager;
@@ -107,6 +110,9 @@ public class KingdomsAddon extends JavaPlugin {
         if (altarManager != null) {
             altarManager.saveAltars();
         }
+        if (immortalityManager != null) {
+            immortalityManager.saveData();
+        }
         
         // Cleanup team colors
         if (teamColorManager != null) {
@@ -131,6 +137,13 @@ public class KingdomsAddon extends JavaPlugin {
         this.altarManager = new AltarManager(this);
         this.ghostManager = new GhostManager(this);
         this.resurrectionGUI = new ResurrectionGUI(this);
+        
+        // Initialize immortality system if enabled
+        if (getConfig().getBoolean("ghost-system.immortality.enabled", true)) {
+            this.immortalityManager = new ImmortalityManager(this);
+            Bukkit.getPluginManager().registerEvents(new ImmortalityListener(this), this);
+            getLogger().info("Immortality system initialized!");
+        }
         
         // Register ghost system listeners (death handling is in RespawnHook)
         Bukkit.getPluginManager().registerEvents(new GhostInteractionListener(this), this);
@@ -210,6 +223,10 @@ public class KingdomsAddon extends JavaPlugin {
             ghostManager.reload();
         }
         
+        if (immortalityManager != null) {
+            immortalityManager.reload();
+        }
+        
         if (teamColorManager != null) {
             teamColorManager.reload();
         }
@@ -255,6 +272,10 @@ public class KingdomsAddon extends JavaPlugin {
     
     public RespawnHook getRespawnHook() {
         return respawnHook;
+    }
+    
+    public ImmortalityManager getImmortalityManager() {
+        return immortalityManager;
     }
     
     public TeamColorManager getTeamColorManager() {

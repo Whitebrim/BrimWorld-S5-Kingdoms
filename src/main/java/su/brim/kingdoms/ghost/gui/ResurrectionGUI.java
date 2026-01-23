@@ -3,6 +3,7 @@ package su.brim.kingdoms.ghost.gui;
 import su.brim.kingdoms.KingdomsAddon;
 import su.brim.kingdoms.ghost.GhostState;
 import su.brim.kingdoms.ghost.altar.Altar;
+import su.brim.kingdoms.config.MessagesConfig;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import net.kyori.adventure.text.format.TextDecoration;
@@ -19,6 +20,7 @@ import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Handles the resurrection merchant GUI for altars.
+ * Also handles immortality purchase for living players.
  */
 public class ResurrectionGUI {
     
@@ -28,10 +30,17 @@ public class ResurrectionGUI {
     private final Map<UUID, Merchant> openMerchants = new ConcurrentHashMap<>();
     
     // Track which ghost each trade is for (player UUID -> (trade index -> ghost UUID))
+    // Index -1 is reserved for immortality purchase
     private final Map<UUID, Map<Integer, UUID>> tradeGhostMapping = new ConcurrentHashMap<>();
     
     // Track which altar the GUI is for
     private final Map<UUID, Altar> playerAltarMapping = new ConcurrentHashMap<>();
+    
+    // Track which trades are immortality purchases (player UUID -> trade index)
+    private final Map<UUID, Integer> immortalityTradeIndex = new ConcurrentHashMap<>();
+    
+    // Special marker UUID for immortality trade
+    private static final UUID IMMORTALITY_MARKER = UUID.fromString("00000000-0000-0000-0000-000000000001");
     
     public ResurrectionGUI(KingdomsAddon plugin) {
         this.plugin = plugin;
@@ -39,12 +48,18 @@ public class ResurrectionGUI {
     
     /**
      * Opens the resurrection GUI for a player at an altar.
+     * Shows ghosts to resurrect AND immortality purchase option if enabled.
      */
     public void openGUI(Player player, Altar altar) {
         String kingdomId = altar.getKingdomId();
         List<GhostState> ghosts = plugin.getGhostManager().getGhostsForKingdom(kingdomId);
         
-        if (ghosts.isEmpty()) {
+        // Check if immortality system is enabled
+        boolean immortalityEnabled = plugin.getImmortalityManager() != null && 
+                                     plugin.getImmortalityManager().isEnabled();
+        
+        // If no ghosts and no immortality option, show message
+        if (ghosts.isEmpty() && !immortalityEnabled) {
             player.sendMessage(plugin.getMessagesConfig().getComponentWithPrefix("ghost.altar.no-ghosts"));
             return;
         }
@@ -62,11 +77,30 @@ public class ResurrectionGUI {
         Map<Integer, UUID> ghostMapping = new HashMap<>();
         
         int index = 0;
+        
+        // First add immortality purchase option if enabled
+        if (immortalityEnabled) {
+            MerchantRecipe immortalityRecipe = createImmortalityRecipe(player);
+            if (immortalityRecipe != null) {
+                recipes.add(immortalityRecipe);
+                ghostMapping.put(index, IMMORTALITY_MARKER);
+                immortalityTradeIndex.put(player.getUniqueId(), index);
+                index++;
+            }
+        }
+        
+        // Then add ghost resurrection options
         for (GhostState ghost : ghosts) {
             MerchantRecipe recipe = createResurrectionRecipe(ghost);
             recipes.add(recipe);
             ghostMapping.put(index, ghost.getPlayerUuid());
             index++;
+        }
+        
+        // If no trades available at all, show message
+        if (recipes.isEmpty()) {
+            player.sendMessage(plugin.getMessagesConfig().getComponentWithPrefix("ghost.altar.no-ghosts"));
+            return;
         }
         
         merchant.setRecipes(recipes);
@@ -79,7 +113,148 @@ public class ResurrectionGUI {
         // Open merchant GUI
         player.openMerchant(merchant, true);
         
-        plugin.debug("Opened resurrection GUI for " + player.getName() + " with " + ghosts.size() + " ghosts");
+        plugin.debug("Opened resurrection GUI for " + player.getName() + 
+                    " with " + ghosts.size() + " ghosts" +
+                    (immortalityEnabled ? " + immortality option" : ""));
+    }
+    
+    /**
+     * Creates a merchant recipe for purchasing immortality.
+     * Returns null if player already has immortality.
+     */
+    private MerchantRecipe createImmortalityRecipe(Player player) {
+        // Check if player already has immortality
+        if (plugin.getImmortalityManager().hasImmortality(player.getUniqueId())) {
+            // Show info item instead with remaining time
+            return createImmortalityInfoRecipe(player);
+        }
+        
+        // Create result item (golden apple representing immortality)
+        ItemStack result = createImmortalityResultItem();
+        
+        // Create recipe
+        MerchantRecipe recipe = new MerchantRecipe(result, 0, 1, false, 0, 0f, 0, 0, true);
+        
+        // Add ingredients (immortality cost)
+        List<ItemStack> cost = plugin.getImmortalityManager().getCost();
+        if (cost.size() >= 1) {
+            recipe.addIngredient(cost.get(0));
+        }
+        if (cost.size() >= 2) {
+            recipe.addIngredient(cost.get(1));
+        }
+        
+        return recipe;
+    }
+    
+    /**
+     * Creates an info recipe showing current immortality status.
+     */
+    private MerchantRecipe createImmortalityInfoRecipe(Player player) {
+        ItemStack result = new ItemStack(Material.BARRIER);
+        ItemMeta meta = result.getItemMeta();
+        
+        meta.displayName(Component.text("⚔ Бессмертие уже активно ⚔")
+                .color(NamedTextColor.YELLOW)
+                .decorate(TextDecoration.BOLD)
+                .decoration(TextDecoration.ITALIC, false));
+        
+        List<Component> lore = new ArrayList<>();
+        lore.add(Component.empty());
+        
+        String remainingTime = plugin.getImmortalityManager().getFormattedRemainingTime(player.getUniqueId());
+        lore.add(Component.text("Осталось времени: ")
+                .color(NamedTextColor.GRAY)
+                .append(Component.text(remainingTime).color(NamedTextColor.GREEN))
+                .decoration(TextDecoration.ITALIC, false));
+        
+        lore.add(Component.empty());
+        lore.add(Component.text("Вы уже защищены бессмертием!")
+                .color(NamedTextColor.YELLOW)
+                .decoration(TextDecoration.ITALIC, false));
+        
+        meta.lore(lore);
+        result.setItemMeta(meta);
+        
+        // Create non-purchasable recipe (using unobtainable item as cost)
+        MerchantRecipe recipe = new MerchantRecipe(result, 0, 0, false, 0, 0f, 0, 0, true);
+        recipe.addIngredient(new ItemStack(Material.BARRIER, 64));
+        
+        return recipe;
+    }
+    
+    /**
+     * Creates the result item for immortality purchase.
+     */
+    private ItemStack createImmortalityResultItem() {
+        ItemStack item = new ItemStack(Material.ENCHANTED_GOLDEN_APPLE);
+        ItemMeta meta = item.getItemMeta();
+        
+        meta.displayName(Component.text("⚔ Купить Бессмертие ⚔")
+                .color(NamedTextColor.GOLD)
+                .decorate(TextDecoration.BOLD)
+                .decoration(TextDecoration.ITALIC, false));
+        
+        List<Component> lore = new ArrayList<>();
+        lore.add(Component.empty());
+        lore.add(Component.text("Эффект бессмертия защитит вас от смерти!")
+                .color(NamedTextColor.GRAY)
+                .decoration(TextDecoration.ITALIC, false));
+        lore.add(Component.text("При смертельном уроне вы будете воскрешены.")
+                .color(NamedTextColor.GRAY)
+                .decoration(TextDecoration.ITALIC, false));
+        lore.add(Component.empty());
+        
+        // Duration info
+        long durationMs = plugin.getImmortalityManager().getDurationMs();
+        String durationText = formatDuration(durationMs);
+        lore.add(Component.text("Длительность: ")
+                .color(NamedTextColor.DARK_PURPLE)
+                .append(Component.text(durationText).color(NamedTextColor.LIGHT_PURPLE))
+                .decoration(TextDecoration.ITALIC, false));
+        
+        lore.add(Component.empty());
+        
+        // Cost display
+        lore.add(Component.text("Стоимость:")
+                .color(NamedTextColor.DARK_PURPLE)
+                .decoration(TextDecoration.ITALIC, false));
+        
+        for (ItemStack costItem : plugin.getImmortalityManager().getCost()) {
+            String itemName = formatItemName(costItem.getType());
+            lore.add(Component.text("  • " + costItem.getAmount() + "x " + itemName)
+                    .color(NamedTextColor.WHITE)
+                    .decoration(TextDecoration.ITALIC, false));
+        }
+        
+        lore.add(Component.empty());
+        lore.add(Component.text("Нажмите для покупки!")
+                .color(NamedTextColor.GREEN)
+                .decorate(TextDecoration.BOLD)
+                .decoration(TextDecoration.ITALIC, false));
+        
+        meta.lore(lore);
+        item.setItemMeta(meta);
+        
+        return item;
+    }
+    
+    /**
+     * Formats duration in milliseconds to human-readable string.
+     */
+    private String formatDuration(long ms) {
+        long hours = ms / (1000 * 60 * 60);
+        long minutes = (ms % (1000 * 60 * 60)) / (1000 * 60);
+        
+        StringBuilder sb = new StringBuilder();
+        if (hours > 0) {
+            sb.append(hours).append(" ч ");
+        }
+        if (minutes > 0) {
+            sb.append(minutes).append(" мин");
+        }
+        
+        return sb.toString().trim();
     }
     
     /**
@@ -161,7 +336,7 @@ public class ResurrectionGUI {
      * @param player The player who made the trade
      * @param tradeIndex The index of the trade
      * @param merchantInv The merchant inventory to consume items from
-     * @return true if resurrection was processed
+     * @return true if transaction was processed successfully
      */
     public boolean handleTrade(Player player, int tradeIndex, org.bukkit.inventory.MerchantInventory merchantInv) {
         UUID playerUuid = player.getUniqueId();
@@ -169,10 +344,66 @@ public class ResurrectionGUI {
         Map<Integer, UUID> ghostMapping = tradeGhostMapping.get(playerUuid);
         if (ghostMapping == null) return false;
         
-        UUID ghostUuid = ghostMapping.get(tradeIndex);
-        if (ghostUuid == null) return false;
+        UUID targetUuid = ghostMapping.get(tradeIndex);
+        if (targetUuid == null) return false;
         
-        Altar altar = playerAltarMapping.get(playerUuid);
+        // Check if this is an immortality purchase
+        if (targetUuid.equals(IMMORTALITY_MARKER)) {
+            return handleImmortalityPurchase(player, merchantInv);
+        }
+        
+        // Otherwise, it's a ghost resurrection
+        return handleGhostResurrection(player, targetUuid, merchantInv);
+    }
+    
+    /**
+     * Handles immortality purchase.
+     */
+    private boolean handleImmortalityPurchase(Player player, org.bukkit.inventory.MerchantInventory merchantInv) {
+        // Check if immortality system is enabled
+        if (plugin.getImmortalityManager() == null || !plugin.getImmortalityManager().isEnabled()) {
+            player.sendMessage(plugin.getMessagesConfig().getComponentWithPrefix("ghost.immortality.disabled"));
+            return false;
+        }
+        
+        // Check if player already has immortality
+        if (plugin.getImmortalityManager().hasImmortality(player.getUniqueId())) {
+            String remainingTime = plugin.getImmortalityManager().getFormattedRemainingTime(player.getUniqueId());
+            player.sendMessage(plugin.getMessagesConfig().getComponentWithPrefix(
+                    "ghost.immortality.already-have",
+                    MessagesConfig.placeholder("time", remainingTime)
+            ));
+            return false;
+        }
+        
+        // Check if merchant trade slots have required items
+        List<ItemStack> cost = plugin.getImmortalityManager().getCost();
+        if (!hasRequiredItemsInMerchant(merchantInv, cost)) {
+            player.sendMessage(plugin.getMessagesConfig().getComponentWithPrefix("ghost.immortality.not-enough-items"));
+            return false;
+        }
+        
+        // Consume items from merchant trade slots
+        consumeItemsFromMerchant(merchantInv, cost);
+        
+        // Grant immortality
+        boolean success = plugin.getImmortalityManager().grantImmortality(player);
+        
+        if (!success) {
+            // Something went wrong - refund items? For now just log
+            plugin.getLogger().warning("Failed to grant immortality to " + player.getName());
+            return false;
+        }
+        
+        plugin.debug("Player " + player.getName() + " purchased immortality");
+        return true;
+    }
+    
+    /**
+     * Handles ghost resurrection.
+     */
+    private boolean handleGhostResurrection(Player player, UUID ghostUuid, org.bukkit.inventory.MerchantInventory merchantInv) {
+        Altar altar = playerAltarMapping.get(player.getUniqueId());
         if (altar == null) return false;
         
         GhostState ghost = plugin.getGhostManager().getGhostState(ghostUuid);
@@ -208,15 +439,13 @@ public class ResurrectionGUI {
         }
         
         // Perform resurrection
-        boolean success = plugin.getGhostManager().resurrect(ghostUuid, resLoc, playerUuid);
+        boolean success = plugin.getGhostManager().resurrect(ghostUuid, resLoc, player.getUniqueId());
         
         if (success) {
             player.sendMessage(plugin.getMessagesConfig().getComponentWithPrefix(
                     "ghost.altar.resurrected",
-                    su.brim.kingdoms.config.MessagesConfig.placeholder("player", ghost.getPlayerName())
+                    MessagesConfig.placeholder("player", ghost.getPlayerName())
             ));
-            
-            // Note: cursor clearing and inventory closing is handled by the listener
             
             // Notify other clan members
             broadcastResurrection(ghost, player);
@@ -327,6 +556,7 @@ public class ResurrectionGUI {
         openMerchants.remove(uuid);
         tradeGhostMapping.remove(uuid);
         playerAltarMapping.remove(uuid);
+        immortalityTradeIndex.remove(uuid);
     }
     
     /**

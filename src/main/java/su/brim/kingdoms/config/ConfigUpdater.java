@@ -19,7 +19,7 @@ public class ConfigUpdater {
     private final KingdomsAddon plugin;
     
     // Current config version in the plugin
-    private static final int CURRENT_CONFIG_VERSION = 2;
+    private static final int CURRENT_CONFIG_VERSION = 3;
     
     public ConfigUpdater(KingdomsAddon plugin) {
         this.plugin = plugin;
@@ -85,9 +85,14 @@ public class ConfigUpdater {
                 // - Added config-version
                 migrateV1toV2(config);
                 break;
+            case 3:
+                // Migration from v2 to v3:
+                // - Added ghost-system.immortality section
+                migrateV2toV3(config);
+                break;
             // Add future migrations here:
-            // case 3:
-            //     migrateV2toV3(config);
+            // case 4:
+            //     migrateV3toV4(config);
             //     break;
         }
     }
@@ -107,6 +112,37 @@ public class ConfigUpdater {
         if (!config.contains("team-colors.ghost-prefix")) {
             config.set("team-colors.ghost-prefix", "§7§o☠ ");
             plugin.getLogger().info("  - Added team-colors.ghost-prefix");
+        }
+    }
+    
+    /**
+     * Migration from version 2 to version 3.
+     * Adds immortality system configuration.
+     */
+    private void migrateV2toV3(FileConfiguration config) {
+        // Add immortality section if not exists
+        if (!config.contains("ghost-system.immortality")) {
+            config.set("ghost-system.immortality.enabled", true);
+            config.set("ghost-system.immortality.duration-minutes", 30);
+            
+            // Add default cost
+            List<Map<String, Object>> costList = new ArrayList<>();
+            Map<String, Object> cost1 = new HashMap<>();
+            cost1.put("material", "GOLD_INGOT");
+            cost1.put("amount", 8);
+            costList.add(cost1);
+            Map<String, Object> cost2 = new HashMap<>();
+            cost2.put("material", "DIAMOND");
+            cost2.put("amount", 2);
+            costList.add(cost2);
+            config.set("ghost-system.immortality.cost", costList);
+            
+            config.set("ghost-system.immortality.effects.particles", true);
+            config.set("ghost-system.immortality.effects.sound", true);
+            config.set("ghost-system.immortality.heal-amount", 10);
+            config.set("ghost-system.immortality.give-totem-effects", true);
+            
+            plugin.getLogger().info("  - Added ghost-system.immortality section");
         }
     }
     

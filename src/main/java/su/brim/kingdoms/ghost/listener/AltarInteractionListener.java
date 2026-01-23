@@ -11,9 +11,9 @@ import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.inventory.InventoryCloseEvent;
 import org.bukkit.event.inventory.InventoryType;
-import org.bukkit.event.player.PlayerInteractEntityEvent;
 import org.bukkit.inventory.EquipmentSlot;
 import org.bukkit.inventory.MerchantInventory;
+import org.bukkit.event.player.PlayerInteractEntityEvent;
 
 /**
  * Handles interactions with resurrection altars.
@@ -62,17 +62,17 @@ public class AltarInteractionListener implements Listener {
         
         // Check if player is a ghost
         if (plugin.getGhostManager().isGhost(player.getUniqueId())) {
-            // Ghosts can't resurrect others, but can view the list
+            // Ghosts can't use altar at all
             player.sendMessage(plugin.getMessagesConfig().getComponentWithPrefix("ghost.altar.cannot-use-as-ghost"));
             return;
         }
         
-        // Open resurrection GUI
+        // Living player - open GUI with resurrection options AND immortality purchase
         plugin.getResurrectionGUI().openGUI(player, altar);
     }
     
     /**
-     * Handles purchase event in merchant GUI (resurrection).
+     * Handles purchase event in merchant GUI (resurrection or immortality).
      */
     @EventHandler(priority = EventPriority.HIGH)
     public void onPurchase(PlayerPurchaseEvent event) {
@@ -95,7 +95,7 @@ public class AltarInteractionListener implements Listener {
         MerchantInventory merchantInv = (MerchantInventory) merchant;
         int selectedIndex = merchantInv.getSelectedRecipeIndex();
         
-        // Handle the resurrection
+        // Handle the trade (resurrection or immortality purchase)
         boolean success = plugin.getResurrectionGUI().handleTrade(player, selectedIndex, merchantInv);
         
         if (success) {
