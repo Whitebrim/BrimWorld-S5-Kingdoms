@@ -9,6 +9,7 @@ website: https://github.com/Whitebrim
 softdepend:
   - TAB
   - PlaceholderAPI
+  - GSit
 
 commands:
   kingdoms:

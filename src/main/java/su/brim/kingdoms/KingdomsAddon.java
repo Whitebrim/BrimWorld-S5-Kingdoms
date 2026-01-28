@@ -3,7 +3,6 @@ package su.brim.kingdoms;
 import su.brim.kingdoms.api.KingdomsAPI;
 import su.brim.kingdoms.commands.KingdomsCommand;
 import su.brim.kingdoms.config.ConfigManager;
-import su.brim.kingdoms.config.ConfigUpdater;
 import su.brim.kingdoms.config.MessagesConfig;
 import su.brim.kingdoms.ghost.GhostManager;
 import su.brim.kingdoms.ghost.ImmortalityManager;
@@ -49,16 +48,9 @@ public class KingdomsAddon extends JavaPlugin {
     // API
     private KingdomsAPI api;
     
-    // Config updater
-    private ConfigUpdater configUpdater;
-    
     @Override
     public void onEnable() {
         instance = this;
-        
-        // Update configs with new values (before loading)
-        this.configUpdater = new ConfigUpdater(this);
-        configUpdater.updateAll();
         
         // Initialize configuration
         saveDefaultConfig();
@@ -150,6 +142,16 @@ public class KingdomsAddon extends JavaPlugin {
         Bukkit.getPluginManager().registerEvents(new AltarInteractionListener(this), this);
         Bukkit.getPluginManager().registerEvents(new GhostVisibilityListener(this), this);
         
+        // Register GSit integration if available
+        if (Bukkit.getPluginManager().getPlugin("GSit") != null) {
+            try {
+                Bukkit.getPluginManager().registerEvents(new su.brim.kingdoms.ghost.listener.GSitListener(this), this);
+                getLogger().info("GSit detected! Registered ghost protection for player sitting.");
+            } catch (NoClassDefFoundError e) {
+                getLogger().warning("GSit found but API classes not available. GSit integration disabled.");
+            }
+        }
+        
         getLogger().info("Ghost system initialized!");
     }
     
@@ -208,11 +210,6 @@ public class KingdomsAddon extends JavaPlugin {
      * Reloads all plugin configuration.
      */
     public void reload() {
-        // Update configs with any new values
-        if (configUpdater != null) {
-            configUpdater.updateAll();
-        }
-        
         reloadConfig();
         configManager.reload();
         messagesConfig.reload();

@@ -1,9 +1,6 @@
 # KingdomsAddon Configuration
 # Standalone kingdoms plugin for Folia servers
 
-# Версия конфига (не изменяйте вручную!)
-config-version: 3
-
 # === НАСТРОЙКИ УРОНА ===
 damage:
   # Множитель урона по союзникам (членам одной команды)
