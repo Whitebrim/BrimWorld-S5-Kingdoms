@@ -132,7 +132,7 @@ public class ResurrectionGUI {
         // Create result item (golden apple representing immortality)
         ItemStack result = createImmortalityResultItem();
         
-        // Create recipe
+        // Create purchasable recipe (maxUses=1)
         MerchantRecipe recipe = new MerchantRecipe(result, 0, 1, false, 0, 0f, 0, 0, true);
         
         // Add ingredients (immortality cost)
@@ -259,14 +259,20 @@ public class ResurrectionGUI {
     
     /**
      * Creates a merchant recipe for resurrecting a ghost.
+     * Recipe is disabled (maxUses=0, red cross) if:
+     * - Ghost can already self-resurrect (timer expired)
+     * - Ghost already has pending resurrection (someone already paid)
      */
     private MerchantRecipe createResurrectionRecipe(GhostState ghost) {
         // Create result item (book with ghost info)
         ItemStack result = createResurrectionResultItem(ghost);
         
-        // Create recipe
+        // Check if resurrection should be disabled
+        boolean disabled = ghost.canSelfResurrect() || ghost.isPendingResurrection();
+        int maxUses = disabled ? 0 : 1;
+        
         // Parameters: result, uses, maxUses, experienceReward, villagerXP, priceMultiplier, demand, specialPrice, ignoreDiscounts
-        MerchantRecipe recipe = new MerchantRecipe(result, 0, 1, false, 0, 0f, 0, 0, true);
+        MerchantRecipe recipe = new MerchantRecipe(result, 0, maxUses, false, 0, 0f, 0, 0, true);
         
         // Add ingredients (resurrection cost)
         List<ItemStack> cost = ghost.getResurrectionCost();
