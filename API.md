@@ -158,7 +158,7 @@ line: '&7Kingdom: %kingdoms_kingdom_name%'
 <dependency>
     <groupId>com.github.Whitebrim</groupId>
     <artifactId>BrimWorld-S5-Kingdoms</artifactId>
-    <version>1.8.0</version>
+    <version>1.9.0</version>
     <scope>provided</scope>
 </dependency>
 ```
